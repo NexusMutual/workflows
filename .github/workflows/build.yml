@@ -11,14 +11,14 @@ on:
         type: string
 
 concurrency:
-  group: ${{ github.event.client_payload.repo || 'none' }}-${{ github.event.client_payload.branch || 'none' }}
+  group: ${{ inputs.repo || 'none' }}-${{ inputs.branch || 'none' }}
   cancel-in-progress: true
 
 env:
-  ALLOWED_REPOSITORIES: '["NexusMutual/frontend-react", "NexusMutual/frontend-next", "NexusMutual/cover-router", "NexusMutual/dummy-app"]'
+  ALLOWED_REPOS: '["NexusMutual/frontend-react", "NexusMutual/frontend-next", "NexusMutual/cover-router", "NexusMutual/dummy-app"]'
   ALLOWED_BRANCHES: '["dev", "master"]'
-  TARGET_BRANCH: ${{ github.event.client_payload.branch || 'none' }}
-  TARGET_REPO: ${{ github.event.client_payload.repo || 'none' }}
+  TARGET_BRANCH: ${{ inputs.branch || 'none' }}
+  TARGET_REPO: ${{ inputs.repo || 'none' }}
 
 jobs:
 
@@ -27,8 +27,15 @@ jobs:
     environment: production
     timeout-minutes: 5
     steps:
+      - name: check branch
+        if: ${{ ! contains(fromJSON(env.ALLOWED_BRANCHES), inputs.branch) }}
+        run: exit 1 # making it fail if the branch is not allowed
+      - name: print inputs
+        run: echo inputs ${{ toJSON(inputs) }}
+      - name: check branch
+        if: ${{ ! contains(fromJSON(env.ALLOWED_REPOS), inputs.repo) }}
+        run: exit 2 # making it fail if the repo is not allowed
       - name: print-gh
-        if: contains(fromJSON(env.ALLOWED_BRANCHES), github.event.client_payload.branch)
         run: echo gh ${{ toJSON(github) }}
       - name: print-env
         run: echo env ${{ toJSON(env) }}
