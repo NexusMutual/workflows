@@ -1,6 +1,14 @@
 name: Build
 
-on: workflow_call
+on:
+  workflow_call:
+    inputs:
+      repo:
+        required: true
+        type: string
+      branch:
+        required: true
+        type: string
 
 concurrency:
   group: ${{ github.event.client_payload.repo || 'none' }}-${{ github.event.client_payload.branch || 'none' }}
