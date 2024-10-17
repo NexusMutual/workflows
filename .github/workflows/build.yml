@@ -24,11 +24,11 @@ jobs:
 
   check-calling-repo:
     runs-on: ubuntu-22.04
-    if: contains(fromJSON(env.ALLOWED_BRANCHES), github.event.client_payload.branch)
     environment: production
     timeout-minutes: 5
     steps:
       - name: print-gh
+        if: contains(fromJSON(env.ALLOWED_BRANCHES), github.event.client_payload.branch)
         run: echo gh ${{ toJSON(github) }}
       - name: print-env
         run: echo env ${{ toJSON(env) }}
