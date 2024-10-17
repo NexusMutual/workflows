@@ -23,14 +23,8 @@ jobs:
     environment: production
     timeout-minutes: 5
     steps:
-      - name: check branch
-        if: ${{ ! contains(fromJSON(env.ALLOWED_BRANCHES), inputs.branch) }}
-        run: exit 1 # making it fail if the branch is not allowed
       - name: print inputs
         run: echo inputs ${{ toJSON(inputs) }}
-      - name: check branch
-        if: ${{ ! contains(fromJSON(env.ALLOWED_REPOS), inputs.repo) }}
-        run: exit 2 # making it fail if the repo is not allowed
       - name: print-gh
         run: echo gh ${{ toJSON(github) }}
       - name: print-env
@@ -39,3 +33,9 @@ jobs:
         run: echo vars ${{ toJSON(vars) }}
       - name: print-secrets
         run: echo secrets ${{ toJSON(secrets) }}
+      - name: check repos
+        if: ${{ ! contains(fromJSON(env.ALLOWED_REPOS), inputs.repo) }}
+        run: exit 2 # making it fail if the repo is not allowed
+      - name: check branch
+        if: ${{ ! contains(fromJSON(env.ALLOWED_BRANCHES), inputs.branch) }}
+        run: exit 1 # making it fail if the branch is not allowed
