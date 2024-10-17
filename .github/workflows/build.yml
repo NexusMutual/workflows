@@ -10,10 +10,6 @@ on:
         required: true
         type: string
 
-concurrency:
-  group: ${{ inputs.repo || 'none' }}-${{ inputs.branch || 'none' }}
-  cancel-in-progress: true
-
 env:
   ALLOWED_REPOS: '["NexusMutual/frontend-react", "NexusMutual/frontend-next", "NexusMutual/cover-router", "NexusMutual/dummy-app"]'
   ALLOWED_BRANCHES: '["dev", "master"]'
