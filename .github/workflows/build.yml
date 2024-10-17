@@ -1,0 +1,30 @@
+name: Build
+
+on: workflow_call
+
+concurrency:
+  group: ${{ github.event.client_payload.repo || 'none' }}-${{ github.event.client_payload.branch || 'none' }}
+  cancel-in-progress: true
+
+env:
+  ALLOWED_REPOSITORIES: '["NexusMutual/frontend-react", "NexusMutual/frontend-next", "NexusMutual/cover-router", "NexusMutual/dummy-app"]'
+  ALLOWED_BRANCHES: '["dev", "master"]'
+  TARGET_BRANCH: ${{ github.event.client_payload.branch || 'none' }}
+  TARGET_REPO: ${{ github.event.client_payload.repo || 'none' }}
+
+jobs:
+
+  check-calling-repo:
+    runs-on: ubuntu-22.04
+    if: contains(fromJSON(env.ALLOWED_BRANCHES), github.event.client_payload.branch)
+    environment: production
+    timeout-minutes: 5
+    steps:
+      - name: print-gh
+        run: echo gh ${{ toJSON(github) }}
+      - name: print-env
+        run: echo env ${{ toJSON(env) }}
+      - name: print-vars
+        run: echo vars ${{ toJSON(vars) }}
+      - name: print-secrets
+        run: echo secrets ${{ toJSON(secrets) }}
