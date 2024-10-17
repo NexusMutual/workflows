@@ -24,15 +24,15 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: print inputs
-        run: echo inputs ${{ toJSON(inputs) }}
+        run: echo inputs '${{ toJSON(inputs) }}'
       - name: print-gh
-        run: echo gh ${{ toJSON(github) }}
+        run: echo gh '${{ toJSON(github) }}'
       - name: print-env
-        run: echo env ${{ toJSON(env) }}
+        run: echo env '${{ toJSON(env) }}'
       - name: print-vars
-        run: echo vars ${{ toJSON(vars) }}
+        run: echo vars '${{ toJSON(vars) }}'
       - name: print-secrets
-        run: echo secrets ${{ toJSON(secrets) }}
+        run: echo secrets '${{ toJSON(secrets) }}'
       - name: check repos
         if: ${{ ! contains(fromJSON(env.ALLOWED_REPOS), inputs.repo) }}
         run: exit 2 # making it fail if the repo is not allowed
