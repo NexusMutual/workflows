@@ -5,7 +5,7 @@ on:
     types: [build]
 
 env:
-  ALLOWED_REPOS: |
+  ALLOWED_REPOS: >-
     [
       "cover-router",
       "dummy-app"
@@ -26,8 +26,7 @@ jobs:
         run: bash -c set
 
       - name: Print allowed repos
-        run: |
-          echo 'Allowed repos: ${{ env.ALLOWED_REPOS }}'
+        run: 'echo Allowed repos: ${{ env.ALLOWED_REPOS }}'
 
       - name: Check repos
         if: ${{ contains(fromJSON(env.ALLOWED_REPOS), env.TARGET_REPO) }}
