@@ -8,9 +8,9 @@ env:
   ALLOWED_REPOS: >-
     [
     "cover-router",
-    "dummy-app"
+    "dummy-app",
     "frontend-next",
-    "frontend-react",
+    "frontend-react"
     ]
   ALLOWED_BRANCHES: '["dev", "master"]'
   TARGET_REPO: ${{ github.event.client_payload.repo || 'none' }}
