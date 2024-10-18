@@ -18,16 +18,11 @@ env:
 
 jobs:
 
-  checks:
+  build:
     runs-on: ubuntu-22.04
+    environment: production
     timeout-minutes: 5
     steps:
-      - name: Print env
-        run: bash -c set
-
-      - name: Print allowed repos
-        run: 'echo Allowed repos: ${{ env.ALLOWED_REPOS }}'
-
       - name: Check repos
         if: ${{ contains(fromJSON(env.ALLOWED_REPOS), env.TARGET_REPO) }}
         run: echo OK
@@ -36,12 +31,6 @@ jobs:
         if: ${{ contains(fromJSON(env.ALLOWED_BRANCHES), env.TARGET_BRANCH) }}
         run: echo OK
 
-  build:
-    runs-on: ubuntu-22.04
-    environment: production
-    needs: checks
-    timeout-minutes: 5
-    steps:
       - name: Create deployooor app token
         uses: actions/create-github-app-token@v1
         id: app-token
@@ -54,7 +43,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          repository: ${{ env.TARGET_REPO }}
+          repository: ${{ github.repository_owner }}/${{ env.TARGET_REPO }}
           ref: ${{ env.TARGET_BRANCH }}
           path: code
 
