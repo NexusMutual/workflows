@@ -19,12 +19,20 @@ env:
 jobs:
 
   build:
+    name: Build ${{ env.TARGET_REPO }}#${{ env.TARGET_BRANCH }}
     runs-on: ubuntu-22.04
     environment: production
     timeout-minutes: 5
+
+    strategy:
+      matrix:
+        repo: ${{ env.TARGET_REPO }}
+        branch: ${{ env.TARGET_BRANCH }}
+
     concurrency:
-      group: ${{ env.TARGET_REPO }}-${{ env.TARGET_BRANCH }}
+      group: ${{ matrix.repo }}-${{ matrix.anch }}
       cancel-in-progress: true
+
     steps:
       - name: Check repos
         if: ${{ contains(fromJSON(env.ALLOWED_REPOS), env.TARGET_REPO) }}
