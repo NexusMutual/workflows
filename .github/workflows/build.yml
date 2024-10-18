@@ -49,9 +49,7 @@ jobs:
           app-id: ${{ vars.DEPLOYER_APP_ID }}
           private-key: ${{ secrets.DEPLOYER_APP_PK }}
           owner: ${{ github.repository_owner }}
-          repositories: |
-            ${{ env.TARGET_REPO }}
-            argocd
+          repositories: ${{ env.TARGET_REPO }}
 
       - name: Checkout
         uses: actions/checkout@v4
