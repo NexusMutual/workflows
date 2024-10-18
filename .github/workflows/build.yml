@@ -4,15 +4,6 @@ on:
   repository_dispatch:
     types: [build]
 
-strategy:
-  matrix:
-    repo: [${{ github.event.client_payload.repo || 'none' }}]
-    branch: [${{ github.event.client_payload.branch || 'none' }}]
-
-concurrency:
-  group: ${{ matrix.repo }}-${{ matrix.branch }}
-  cancel-in-progress: true
-
 env:
   ALLOWED_REPOS: >-
     [
@@ -31,6 +22,9 @@ jobs:
     runs-on: ubuntu-22.04
     environment: production
     timeout-minutes: 5
+    concurrency:
+      group: ${{ env.TARGET_REPO }}-${{ env.TARGET_BRANCH }}
+      cancel-in-progress: true
     steps:
       - name: Check repos
         if: ${{ contains(fromJSON(env.ALLOWED_REPOS), env.TARGET_REPO) }}
