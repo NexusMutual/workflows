@@ -1,20 +1,14 @@
 name: Build
 
 on:
-  workflow_call:
-    inputs:
-      repo:
-        required: true
-        type: string
-      branch:
-        required: true
-        type: string
+  repository_dispatch:
+    types: [build]
 
 env:
-  ALLOWED_REPOS: '["NexusMutual/frontend-react", "NexusMutual/frontend-next", "NexusMutual/cover-router", "NexusMutual/dummy-app"]'
+  ALLOWED_REPOS: '["frontend-react", "frontend-next", "cover-router", "dummy-app"]'
   ALLOWED_BRANCHES: '["dev", "master"]'
-  TARGET_BRANCH: ${{ inputs.branch || 'none' }}
-  TARGET_REPO: ${{ inputs.repo || 'none' }}
+  TARGET_REPO: ${{ github.event.client_payload.repo || 'none' }}
+  TARGET_BRANCH: ${{ github.event.client_payload.branch || 'none' }}
 
 jobs:
 
@@ -23,8 +17,6 @@ jobs:
     environment: production
     timeout-minutes: 5
     steps:
-      - name: print inputs
-        run: echo inputs '${{ toJSON(inputs) }}'
       - name: print-gh
         run: echo gh '${{ toJSON(github) }}'
       - name: print-env
@@ -34,8 +26,8 @@ jobs:
       - name: print-secrets
         run: echo secrets '${{ toJSON(secrets) }}'
       - name: check repos
-        if: ${{ ! contains(fromJSON(env.ALLOWED_REPOS), inputs.repo) }}
+        if: ${{ ! contains(fromJSON(env.ALLOWED_REPOS), env.TARGET_REPO) }}
         run: exit 2 # making it fail if the repo is not allowed
       - name: check branch
-        if: ${{ ! contains(fromJSON(env.ALLOWED_BRANCHES), inputs.branch) }}
+        if: ${{ ! contains(fromJSON(env.ALLOWED_BRANCHES), env.TARGET_BRANCH) }}
         run: exit 1 # making it fail if the branch is not allowed
