@@ -26,7 +26,7 @@ jobs:
         run: bash -c set
 
       - name: Print allowed repos
-        run:
+        run: |
           echo 'Allowed repos: ${{ env.ALLOWED_REPOS }}'
 
       - name: Check repos
