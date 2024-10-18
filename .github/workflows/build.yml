@@ -5,29 +5,54 @@ on:
     types: [build]
 
 env:
-  ALLOWED_REPOS: '["frontend-react", "frontend-next", "cover-router", "dummy-app"]'
+  ALLOWED_REPOS: |
+    [
+      "cover-router",
+      "dummy-app"
+      "frontend-next",
+      "frontend-react",
+    ]
   ALLOWED_BRANCHES: '["dev", "master"]'
   TARGET_REPO: ${{ github.event.client_payload.repo || 'none' }}
   TARGET_BRANCH: ${{ github.event.client_payload.branch || 'none' }}
 
 jobs:
 
-  check-calling-repo:
+  checks:
     runs-on: ubuntu-22.04
-    environment: production
     timeout-minutes: 5
     steps:
-      - name: print-gh
-        run: echo gh '${{ toJSON(github) }}'
-      - name: print-env
-        run: echo env '${{ toJSON(env) }}'
-      - name: print-vars
-        run: echo vars '${{ toJSON(vars) }}'
-      - name: print-secrets
-        run: echo secrets '${{ toJSON(secrets) }}'
-      - name: check repos
-        if: ${{ ! contains(fromJSON(env.ALLOWED_REPOS), env.TARGET_REPO) }}
-        run: exit 2 # making it fail if the repo is not allowed
-      - name: check branch
-        if: ${{ ! contains(fromJSON(env.ALLOWED_BRANCHES), env.TARGET_BRANCH) }}
-        run: exit 1 # making it fail if the branch is not allowed
+      - name: Check repos
+        if: ${{ contains(fromJSON(env.ALLOWED_REPOS), env.TARGET_REPO) }}
+        run: echo OK
+
+      - name: Check branch
+        if: ${{ contains(fromJSON(env.ALLOWED_BRANCHES), env.TARGET_BRANCH) }}
+        run: echo OK
+
+  build:
+    runs-on: ubuntu-22.04
+    environment: production
+    needs: checks
+    timeout-minutes: 5
+    steps:
+      - name: Create deployooor app token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ vars.DEPLOYER_APP_ID }}
+          private-key: ${{ secrets.DEPLOYER_APP_PK }}
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            ${{ env.TARGET_REPO }}
+            argocd
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.TARGET_REPO }}
+          ref: ${{ env.TARGET_BRANCH }}
+          path: code
+
+      - name: ls
+        run: ls -la code
