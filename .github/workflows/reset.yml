@@ -1,0 +1,58 @@
+name: Reset branch
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      base-ref:
+        type: string
+        required: true
+      target-ref:
+        type: string
+        required: true
+    secrets:
+      DEPLOYER_APP_ID:
+        required: true
+      DEPLOYER_APP_PK:
+        required: true
+
+jobs:
+  rebase:
+    runs-on: ubuntu-22.04
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Validate
+        if: github.event.inputs.target-ref == 'master'
+        run: |
+          echo "Target branch cannot be master"
+          exit 1
+
+      - name: Create deployooor app token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOYER_APP_ID }}
+          private-key: ${{ secrets.DEPLOYER_APP_PK }}
+          #repositories: ${{ inputs.repository }}
+
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.target-ref }}
+
+      - name: Print out values
+        run: |
+          echo "${{ inputs.base-ref }}"
+          echo "${{ inputs.target-ref }}"
+          git branch --show-current
+
+      - name: Reset
+        run: |
+          git config --local user.email "deployooor@nexusmutual.io"
+          git config --local user.name "Deployooor"
+          git fetch --all
+          git reset --hard origin/${{ inputs.base-ref }}
+          git push origin ${{ inputs.target-ref }} --force
