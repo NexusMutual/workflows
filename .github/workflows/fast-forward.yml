@@ -42,3 +42,13 @@ jobs:
           git fetch origin ${{ inputs.source-ref }}
           git merge origin/${{ inputs.source-ref }} --ff-only
           git push origin ${{ inputs.target-ref }}
+
+      - name: Get package.json version
+        if: inputs.target-ref == 'master'
+        run: echo VERSION=$(node -p 'require("./package.json").version') >> $GITHUB_ENV
+
+      - name: Tag
+        if: inputs.target-ref == 'master'
+        run: |
+          git tag v${{ env.VERSION }}
+          git push origin --tags
