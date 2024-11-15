@@ -1,4 +1,4 @@
-name: Build
+name: Tag Image
 
 on:
   workflow_call:
@@ -12,9 +12,9 @@ on:
       image:
         type: string
         required: true
-      dockerfile:
+      target-tag:
         type: string
-        default: Dockerfile
+        required: true
       node-version:
         type: string
         default: 20
@@ -25,16 +25,11 @@ on:
         required: true
       DOCKER_PASSWORD:
         required: true
-    outputs:
-      image-tag:
-        value: ${{ jobs.build.outputs.image-tag }}
 
 jobs:
-  build:
+  tag-image:
     runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
-    outputs:
-      image-tag: ${{ steps.vars.outputs.TAG }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,24 +47,14 @@ jobs:
         run: |
           VERSION=$(node -p 'require("./package.json").version')
           SHA_SHORT=$(git rev-parse --short HEAD)
-          echo "TAG=${VERSION}-${SHA_SHORT}" >> $GITHUB_OUTPUT
+          echo "SOURCE_TAG=${VERSION}-${SHA_SHORT}" >> $GITHUB_OUTPUT
           echo 'IMAGE=${{ inputs.image }}' | tr '[:upper:]' '[:lower:]' >> $GITHUB_OUTPUT
 
-      - name: Build image
+      - name: Tag image
         env:
           IMAGE: ${{ steps.vars.outputs.IMAGE }}
-          TAG: ${{ steps.vars.outputs.TAG }}
-        run: docker build -t "ghcr.io/${IMAGE}:${TAG}" -f ${{ inputs.dockerfile }} .
-
-      - name: Push image
-        env:
-          IMAGE: ${{ steps.vars.outputs.IMAGE }}
-          TAG: ${{ steps.vars.outputs.TAG }}
+          TARGET_TAG: ${{ inputs.target-tag }}
+          SOURCE_TAG: ${{ steps.vars.outputs.SOURCE_TAG }}
         run: |
-          echo "logging in"
           echo ${{ secrets.DOCKER_PASSWORD }} | docker login ghcr.io -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
-          echo "pushing"
-          docker push "ghcr.io/${IMAGE}:${TAG}"
-
-      - name: Print tag
-        run: echo "Pushed ${{ steps.vars.outputs.IMAGE }}:${{ steps.vars.outputs.TAG }}"
+          docker buildx imagetools create ghcr.io/${IMAGE}:${SOURCE_TAG} --tag ghcr.io/${IMAGE}:${TARGET_TAG}

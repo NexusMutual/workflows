@@ -1,0 +1,44 @@
+name: Fast forward branch
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      source-ref:
+        type: string
+        required: true
+      target-ref:
+        type: string
+        required: true
+    secrets:
+      DEPLOYER_APP_ID:
+        required: true
+      DEPLOYER_APP_PK:
+        required: true
+
+jobs:
+  fast-forward:
+    runs-on: ubuntu-22.04
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Create deployooor app token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOYER_APP_ID }}
+          private-key: ${{ secrets.DEPLOYER_APP_PK }}
+          #repositories: ${{ inputs.repository }}
+
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.target-ref }}
+
+      - name: Fast-forward merge
+        run: |
+          git fetch origin ${{ inputs.source-ref }}
+          git merge origin/${{ inputs.source-ref }} --ff-only
+          git push origin ${{ inputs.target-ref }}
