@@ -19,7 +19,7 @@ on:
         required: true
 
 jobs:
-  rebase:
+  reset:
     runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
     steps:
