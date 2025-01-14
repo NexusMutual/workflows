@@ -35,7 +35,7 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
           repository: ${{ inputs.repository }}
-          ref: ${{ inputs.target-ref }}
+          ref: ${{ inputs.target-ref }} # Always check out the source branch first
 
       - name: Fast-forward merge
         run: |
