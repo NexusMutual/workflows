@@ -35,7 +35,7 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
           repository: ${{ inputs.repository }}
-          ref: ${{ inputs.target-ref }} # Always check out the source branch first
+          ref: ${{ inputs.source-ref }}  # Always check out the source branch first
 
       - name: Fast-forward merge
         run: |
@@ -44,12 +44,12 @@ jobs:
           # Check if target branch exists and store result
           if git show-ref --verify refs/remotes/origin/${{ inputs.target-ref }} > /dev/null 2>&1; then
             git checkout ${{ inputs.target-ref }}
+            git merge origin/${{ inputs.source-ref }} --ff-only
           else
             echo "Target branch ${{ inputs.target-ref }} does not exist, creating it from ${{ inputs.source-ref }}"
             git checkout -b ${{ inputs.target-ref }} origin/${{ inputs.source-ref }}
           fi
           
-          git merge origin/${{ inputs.source-ref }} --ff-only
           git push origin ${{ inputs.target-ref }}
 
       - name: Tag
