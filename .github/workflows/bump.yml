@@ -61,14 +61,10 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts --prefer-offline --no-audit --no-fund
 
-      - name: Set GITHUB_REF to inputs.ref
-        run: echo "GITHUB_REF=refs/heads/${{ inputs.ref }}" >> $GITHUB_ENV
-
       - name: Bump and commit version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo $GITHUB_REF
           git config --local user.email "deployooor@nexusmutual.io"
           git config --local user.name "Version bumpooor"
           ${{ inputs.bump-and-commit-command }}
