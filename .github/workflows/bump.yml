@@ -9,9 +9,9 @@ on:
       ref:
         type: string
         required: true
-      bump-command:
+      bump-and-commit-command:
         type: string
-        default: ./scripts/bump-version.sh
+        default: npx semantic-release --dry-run --no-ci
       node-version:
         type: string
         default: 20
@@ -19,6 +19,8 @@ on:
       DEPLOYER_APP_ID:
         required: true
       DEPLOYER_APP_PK:
+        required: true
+      GITHUB_TOKEN:
         required: true
 
 jobs:
@@ -37,36 +39,41 @@ jobs:
         with:
           app-id: ${{ secrets.DEPLOYER_APP_ID }}
           private-key: ${{ secrets.DEPLOYER_APP_PK }}
-          #repositories: ${{ inputs.repository }}
 
       - uses: actions/checkout@v4
         with:
           token: ${{ steps.app-token.outputs.token }}
           ref: ${{ inputs.ref }}
-#          repository: ${{ inputs.repository }}
+
+      - name: Checkout workflows repo
+        uses: actions/checkout@v4
+        with:
+          repository: NexusMutual/workflows
+          token: ${{ steps.app-token.outputs.token }}
+          path: workflows-repo
 
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
-          cache: 'npm'
+          cache: "npm"
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci --ignore-scripts --prefer-offline --no-audit --no-fund
 
-      - name: Bump version
-        run: ${{ inputs.bump-command }}
+      - name: Set GITHUB_REF to inputs.ref
+        run: echo "GITHUB_REF=refs/heads/${{ inputs.ref }}" >> $GITHUB_ENV
 
-      - name: Get package.json version
-        run: echo VERSION=$(node -p 'require("./package.json").version') >> $GITHUB_ENV
-
-      - name: Commit and push
+      - name: Bump and commit version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config --local user.email "deployooor@nexusmutual.io"
           git config --local user.name "Version bumpooor"
-          git add .
-          git commit -m "chore: release v${{ env.VERSION }} [skip ci]"
-          git push origin ${{ inputs.ref }}
+          ${{ inputs.bump-and-commit-command }}
+
+      - name: Push version
+        run: git push origin ${{ inputs.ref }}
 
       - name: Tag
         if: inputs.ref == 'master'
