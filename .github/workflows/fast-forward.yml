@@ -39,7 +39,16 @@ jobs:
 
       - name: Fast-forward merge
         run: |
-          git fetch origin ${{ inputs.source-ref }}
+          git fetch origin
+          
+          # Check if target branch exists and store result
+          if git show-ref --verify refs/remotes/origin/${{ inputs.target-ref }} > /dev/null 2>&1; then
+            git checkout ${{ inputs.target-ref }}
+          else
+            echo "Target branch ${{ inputs.target-ref }} does not exist, creating it from ${{ inputs.source-ref }}"
+            git checkout -b ${{ inputs.target-ref }} origin/${{ inputs.source-ref }}
+          fi
+          
           git merge origin/${{ inputs.source-ref }} --ff-only
           git push origin ${{ inputs.target-ref }}
 
