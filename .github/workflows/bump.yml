@@ -68,6 +68,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          echo $GITHUB_REF
           git config --local user.email "deployooor@nexusmutual.io"
           git config --local user.name "Version bumpooor"
           ${{ inputs.bump-and-commit-command }}
