@@ -9,7 +9,7 @@ on:
       ref:
         type: string
         required: true
-      bump-and-commit-command:
+      bump-command:
         type: string
         default: npx semantic-release --dry-run --no-ci
       node-version:
@@ -61,17 +61,21 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts --prefer-offline --no-audit --no-fund
 
-      - name: Bump and commit version
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Bump version
+        run: ${{ inputs.bump-command }}
+
+      - name: Get package.json version
+        run: echo VERSION=$(node -p 'require("./package.json").version') >> $GITHUB_ENV
+
+      - name: Commit and push
         run: |
           git config --local user.email "deployooor@nexusmutual.io"
           git config --local user.name "Version bumpooor"
-          ${{ inputs.bump-and-commit-command }}
+          git add package.json package-lock.json
+          git commit -m "chore(release): v${{ env.VERSION }} [skip ci]"
+          git push origin ${{ inputs.ref }}
 
-      - name: Push version
-        run: git push origin ${{ inputs.ref }}
-
+      # TODO: should be dropped? bump is only done in rc
       - name: Tag
         if: inputs.ref == 'master'
         run: |
