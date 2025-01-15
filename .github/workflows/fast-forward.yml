@@ -29,27 +29,29 @@ jobs:
         with:
           app-id: ${{ secrets.DEPLOYER_APP_ID }}
           private-key: ${{ secrets.DEPLOYER_APP_PK }}
-          #repositories: ${{ inputs.repository }}
+
+      - name: Create target branch if it doesn't exist
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          # Check if branch exists using GitHub API
+          if ! gh api repos/${{ github.repository }}/branches/${{ inputs.target-ref }} --silent; then
+            echo "Creating target branch ${{ inputs.target-ref }} from ${{ inputs.source-ref }}"
+            gh api -X POST repos/${{ github.repository }}/git/refs \
+              -f ref="refs/heads/${{ inputs.target-ref }}" \
+              -f sha="$(gh api repos/${{ github.repository }}/git/refs/heads/${{ inputs.source-ref }} --jq .object.sha)"
+          fi
 
       - uses: actions/checkout@v4
         with:
           token: ${{ steps.app-token.outputs.token }}
           repository: ${{ inputs.repository }}
-          ref: ${{ inputs.source-ref }}  # Always check out the source branch first
+          ref: ${{ inputs.target-ref }}
 
       - name: Fast-forward merge
         run: |
           git fetch origin
-          
-          # Check if target branch exists and store result
-          if git show-ref --verify refs/remotes/origin/${{ inputs.target-ref }} > /dev/null 2>&1; then
-            git checkout ${{ inputs.target-ref }}
-            git merge origin/${{ inputs.source-ref }} --ff-only
-          else
-            echo "Target branch ${{ inputs.target-ref }} does not exist, creating it from ${{ inputs.source-ref }}"
-            git checkout -b ${{ inputs.target-ref }} origin/${{ inputs.source-ref }}
-          fi
-          
+          git merge origin/${{ inputs.source-ref }} --ff-only
           git push origin ${{ inputs.target-ref }}
 
       - name: Tag
