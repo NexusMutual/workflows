@@ -42,9 +42,11 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.target-ref }}
+          fetch-depth: 0
 
-      - name: Rebase
+      - name: Rebase and push
         run: |
+          echo "Rebasing against ${{ inputs.base-ref }} branch for target branch: ${{ inputs.target-ref }}"
           git config --local user.email "deployooor@nexusmutual.io"
           git config --local user.name "Deployooor"
           git fetch --all

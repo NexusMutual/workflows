@@ -30,18 +30,6 @@ jobs:
           app-id: ${{ secrets.DEPLOYER_APP_ID }}
           private-key: ${{ secrets.DEPLOYER_APP_PK }}
 
-      - name: Create target branch if it doesn't exist
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          # Check if branch exists using GitHub API
-          if ! gh api repos/${{ github.repository }}/branches/${{ inputs.target-ref }} --silent; then
-            echo "Creating target branch ${{ inputs.target-ref }} from ${{ inputs.source-ref }}"
-            gh api -X POST repos/${{ github.repository }}/git/refs \
-              -f ref="refs/heads/${{ inputs.target-ref }}" \
-              -f sha="$(gh api repos/${{ github.repository }}/git/refs/heads/${{ inputs.source-ref }} --jq .object.sha)"
-          fi
-
       - uses: actions/checkout@v4
         with:
           token: ${{ steps.app-token.outputs.token }}
@@ -50,12 +38,7 @@ jobs:
 
       - name: Fast-forward merge
         run: |
+          echo "Fast-forward merging to branch: ${{ inputs.target-ref }} from source branch: ${{ inputs.source-ref }}"
           git fetch origin
           git merge origin/${{ inputs.source-ref }} --ff-only
           git push origin ${{ inputs.target-ref }}
-
-      - name: Tag
-        if: inputs.target-ref == 'master'
-        run: |
-          git tag v$(node -p 'require("./package.json").version')
-          git push origin --tags
