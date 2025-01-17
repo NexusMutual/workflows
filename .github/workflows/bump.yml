@@ -11,7 +11,8 @@ on:
         required: true
       bump-command:
         type: string
-        default: npx semantic-release --dry-run --no-ci
+        # the bump should happen only in release-candidate branch
+        default: GITHUB_REF=refs/heads/release-candidate npx semantic-release --dry-run --no-ci
       node-version:
         type: string
         default: 20
