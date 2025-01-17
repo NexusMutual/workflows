@@ -20,8 +20,6 @@ on:
         required: true
       DEPLOYER_APP_PK:
         required: true
-      # GITHUB_TOKEN:
-      #   required: true
 
 jobs:
   bump:
@@ -44,13 +42,6 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
           ref: ${{ inputs.ref }}
-
-      - name: Checkout workflows repo
-        uses: actions/checkout@v4
-        with:
-          repository: NexusMutual/workflows
-          token: ${{ steps.app-token.outputs.token }}
-          path: workflows-repo
 
       - uses: actions/setup-node@v4
         with:
