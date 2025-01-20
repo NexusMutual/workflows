@@ -1,0 +1,66 @@
+name: Fast forward or rebase branch
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      source-ref:
+        type: string
+        required: true
+      target-ref:
+        type: string
+        required: true
+    secrets:
+      DEPLOYER_APP_ID:
+        required: true
+      DEPLOYER_APP_PK:
+        required: true
+
+jobs:
+  ff-or-rebase:
+    runs-on: ubuntu-22.04
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Create deployooor app token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOYER_APP_ID }}
+          private-key: ${{ secrets.DEPLOYER_APP_PK }}
+
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          ref: ${{ inputs.target-ref }}
+          fetch-depth: 0
+
+      - name: Attempt fast-forward merge
+        id: ff-merge
+        run: |
+          echo "Attempting fast-forward merge to ${{ inputs.target-ref }} branch from source ${{ inputs.source-ref }} branch"
+          git fetch origin ${{ inputs.source-ref }}
+          set +e
+          git merge origin/${{ inputs.source-ref }} --ff-only
+          exit_code=$?
+          set -e
+          if [ $exit_code -eq 0 ]; then
+            echo "✅ Fast-forward merge was successful"
+            git push origin ${{ inputs.target-ref }}
+            echo "needs_rebase=false" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Fast-forward merge failed, will attempt rebase"
+            git reset --hard HEAD
+            echo "needs_rebase=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Rebase and push
+        if: steps.ff-merge.outputs.needs_rebase == 'true'
+        run: |
+          echo "Attempting rebase of ${{ inputs.target-ref }} onto ${{ inputs.source-ref }}"
+          git config --local user.email "deployooor@nexusmutual.io"
+          git config --local user.name "Deployooor"
+          git rebase origin/${{ inputs.source-ref }} --rebase-merges
+          git push origin ${{ inputs.target-ref }} --force
+          echo "✅ Rebase and push successful"
