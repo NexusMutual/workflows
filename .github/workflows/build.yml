@@ -15,9 +15,6 @@ on:
       dockerfile:
         type: string
         default: Dockerfile
-      node-version:
-        type: string
-        default: 20
     secrets:
       TOKEN:
         required: true
@@ -41,16 +38,10 @@ jobs:
           token: ${{ secrets.TOKEN }}
           ref: ${{ inputs.ref }}
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-          cache: 'npm'
-          cache-dependency-path: package-lock.json
-
       - name: Get version and revision
         id: vars
         run: |
-          VERSION=$(node -p 'require("./package.json").version')
+          VERSION=v$(jq -r .version package.json)
           SHA_SHORT=$(git rev-parse --short HEAD)
           echo "TAG=${VERSION}-${SHA_SHORT}" >> $GITHUB_OUTPUT
           echo 'IMAGE=${{ inputs.image }}' | tr '[:upper:]' '[:lower:]' >> $GITHUB_OUTPUT

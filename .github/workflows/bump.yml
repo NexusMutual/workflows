@@ -61,5 +61,5 @@ jobs:
           git config --local user.email "deployooor@nexusmutual.io"
           git config --local user.name "Version bumpooor"
           git add package.json package-lock.json
-          git commit -m "chore(release): v$(node -p 'require("./package.json").version') [skip ci]"
+          git commit -m "chore(release): v$(jq -r .version package.json) [skip ci]"
           git push origin ${{ inputs.ref }}
