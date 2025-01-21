@@ -1,4 +1,4 @@
-name: Rebase branch
+name: Fast forward or rebase branch
 
 on:
   workflow_call:
@@ -6,7 +6,7 @@ on:
       environment:
         type: string
         required: true
-      base-ref:
+      source-ref:
         type: string
         required: true
       target-ref:
@@ -23,30 +23,24 @@ jobs:
     runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
     steps:
-      - name: Validate
-        if: github.event.inputs.target-ref == 'master'
-        run: |
-          echo "Target branch cannot be master"
-          exit 1
-
       - name: Create deployooor app token
         uses: actions/create-github-app-token@v1
         id: app-token
         with:
           app-id: ${{ secrets.DEPLOYER_APP_ID }}
           private-key: ${{ secrets.DEPLOYER_APP_PK }}
-          #repositories: ${{ inputs.repository }}
 
       - uses: actions/checkout@v4
         with:
           token: ${{ steps.app-token.outputs.token }}
-          repository: ${{ inputs.repository }}
           ref: ${{ inputs.target-ref }}
+          fetch-depth: 0
 
-      - name: Rebase
+      - name: Rebase and push
         run: |
+          echo "Rebasing ${{ inputs.target-ref }} branch onto ${{ inputs.source-ref }} branch"
           git config --local user.email "deployooor@nexusmutual.io"
           git config --local user.name "Deployooor"
-          git fetch --all
-          git rebase origin/${{ inputs.base-ref }} --rebase-merges
+          git rebase origin/${{ inputs.source-ref }} --rebase-merges
           git push origin ${{ inputs.target-ref }} --force
+          echo "✅ Rebase and push successful"

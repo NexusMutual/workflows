@@ -1,4 +1,4 @@
-name: Fast forward branch
+name: Git tag version
 
 on:
   workflow_call:
@@ -6,10 +6,7 @@ on:
       environment:
         type: string
         required: true
-      source-ref:
-        type: string
-        required: true
-      target-ref:
+      ref:
         type: string
         required: true
     secrets:
@@ -19,7 +16,7 @@ on:
         required: true
 
 jobs:
-  fast-forward:
+  git-tag:
     runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
     steps:
@@ -33,12 +30,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ steps.app-token.outputs.token }}
-          repository: ${{ inputs.repository }}
-          ref: ${{ inputs.target-ref }}
+          ref: ${{ inputs.ref }}
 
-      - name: Fast-forward merge
+      - name: Create and push version tag
         run: |
-          echo "Fast-forward merging to ${{ inputs.target-ref }} branch from source ${{ inputs.source-ref }} branch"
-          git fetch origin ${{ inputs.source-ref }}
-          git merge origin/${{ inputs.source-ref }} --ff-only
-          git push origin ${{ inputs.target-ref }}
+          VERSION=v$(jq -r .version package.json)
+          git tag $VERSION
+          git push origin $VERSION
