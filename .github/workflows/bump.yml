@@ -12,7 +12,8 @@ on:
       bump-command:
         type: string
         # the bump should happen only in release-candidate branch
-        default: GITHUB_REF=refs/heads/release-candidate npx semantic-release --dry-run --no-ci
+        # default: GITHUB_REF=refs/heads/release-candidate npx semantic-release --dry-run --no-ci
+        default: BUMP=$(npx conventional-recommended-bump --config ./conventional-bump-setup.js) && [ ! -z "$BUMP" ] && npm version $BUMP --no-git-tag-version
       node-version:
         type: string
         default: 20
@@ -43,6 +44,8 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
           ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          fetch-tags: true
 
       - uses: actions/setup-node@v4
         with:
