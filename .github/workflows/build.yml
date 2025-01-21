@@ -41,7 +41,7 @@ jobs:
       - name: Get version and revision
         id: vars
         run: |
-          VERSION=v$(jq -r .version package.json)
+          VERSION=$(jq -r .version package.json)
           SHA_SHORT=$(git rev-parse --short HEAD)
           echo "TAG=${VERSION}-${SHA_SHORT}" >> $GITHUB_OUTPUT
           echo 'IMAGE=${{ inputs.image }}' | tr '[:upper:]' '[:lower:]' >> $GITHUB_OUTPUT
