@@ -35,5 +35,15 @@ jobs:
       - name: Create and push version tag
         run: |
           VERSION=v$(jq -r .version package.json)
-          git tag $VERSION
-          git push origin $VERSION
+
+          # Fetch all tags from remote
+          git fetch --tags
+
+          # Check if tag already exists
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists. Skipping tag creation."
+          else
+            echo "Creating new tag: $VERSION"
+            git tag $VERSION
+            git push origin $VERSION
+          fi
