@@ -2,206 +2,176 @@
 
 This repository uses a **Git Flow**‐inspired process with the following branches:
 
-* **feature** branches (e.g. feat/some-cool-feature)
-* **dev** for development (collecting features)
-* **hotfix** for urgent fixes that need to go to production quickly
-* **release-candidate** (staging environment)
-* **master** (production)
+- **feature** branches (e.g. feat/some-cool-feature)
+- **dev** for development (collecting features)
+- **hotfix** for urgent fixes that need to go to production quickly
+- **release-candidate** (staging environment)
+- **master** (production)
 
 We have two major paths: **Feature to Dev** and **Hotfix to Hotfix**. In both cases, merging into `dev` or `hotfix` triggers a job that:
-* **resets** `release-candidate` to match the incoming branch
-* bumps version
-* builds a Docker image for staging
 
-Once validated in staging, a manual dispatch of the **Fast forward release-candidate to master** job can fast‐forward `release-candidate` → `master`. At that point, we propagate changes back into `dev` (which may either be fast-forwarded or rebased) and `hotfix` (which is always fast-forwarded).
+- **resets** `release-candidate` to match the incoming branch
+- bumps version
+- builds a Docker image for staging
+
+Once validated in staging, a manual dispatch of the **Fast forward release-candidate to master** job can fast‐forward `release-candidate` → `master`. Which does:
+
+1. forwards `release-candidate` changes to master (including the version bump commit)
+2. makes the image available to production environment
+3. propagate changes back into `dev` and `hotfix` via rebase
+
+This ensures `dev` and `hotfix` is always up to date with master.
 
 ## High‐Level Diagram
 
-
 ```mermaid
 flowchart TD
-    subgraph Normal Flow
-        A[Feature Branches] -->|Pull Request| B[dev]
-        B[dev] --> C_dev_merge[Merge triggers merge-to-dev-or-hotfix.yml]
+    %% Nodes
+    A[Feature Branches]
+    B[dev]
+    C_dev_merge[merge-to-dev-or-hotfix.yml]
+    H[Hotfix Branches]
+    G[hotfix]
+    C_hotfix_merge[merge-to-dev-or-hotfix.yml]
+    RC[release-candidate]
+    D[master]
+
+    %% Dev Flow
+    subgraph Dev Flow
+        A -->|"(1) Merge Pull Request"| B
+        B -->|"(2a) Merge triggers job"| C_dev_merge
     end
 
+    %% Hotfix Flow
     subgraph Hotfix Flow
-        H[Hotfix Branches] -->|Pull Request| G[hotfix]
-        G[hotfix] --> C_hotfix_merge[Merge triggers merge-to-dev-or-hotfix.yml]
+        H -->|"(1) Merge Pull Request"| G
+        G -->|"(2a) Merge triggers job"| C_hotfix_merge
     end
 
-    C_dev_merge --> RC[release-candidate]
-    C_hotfix_merge --> RC
+    C_dev_merge -->|"(2b) Resets and syncs rc + version bump + push image"| RC
+    C_hotfix_merge -->|"(2b) Resets and syncs rc + version bump + push image"| RC
 
-    RC -->|Manual step: ff-release-candidate-to-master.yml| D[master]
-    D -->|Fast-forwards or rebases to| B
-    D -->|Fast-forwards or rebases to| G
+    RC -->|"(3a) Manual step: ff-release-candidate-to-master.yml"| D
+    D -->|"(3b) rebases to"| B
+    D -->|"(3b) rebases to"| G
 ```
 
-1. Feature branches are merged into dev.
-2. Hotfix branches are merged into hotfix.
-3. Merging into dev or hotfix triggers our `merge-to-dev-or-hotfix.yml` workflow, which:
-   * Resets `release-candidate` to match the just‐merged branch
-   * Bumps the version (semantic-release)
-   * Builds and pushes a Docker image (with a tag like `vX.X.X-SHA`)
-   * Deploys it to staging.
-4. Once validated in staging, we manually trigger `ff-release-candidate-to-master.yml` to **fast‐forward** `release-candidate` → `master`.
-5. A Docker image is tagged as `latest` and deployed to production.
-6. Uses **Fast‐forward or rebase** to sync `dev` with `master`.
-7. Uses **Fast‐forward or rebase** to sync `hotfix` with `master`.
+### Normal Flow
+
+1. **Code Integration**: Branches are merged to either `dev` or `hotfix`
+2. **Staging Preparation**: Merge triggers `merge-to-dev-or-hotfix.yml` workflow:
+   - Resets `release-candidate` to match the merged branch
+   - Bumps version using `conventional-recommended-bump`
+   - Builds and pushes Docker image (`vX.X.X-SHA`) to staging environment
+3. **Production Release**: After staging validation, manually trigger `ff-release-candidate-to-master.yml`:
+   - Fast-forwards `master` to match `release-candidate`
+   - Tags Docker image as `latest` for production (**NOTE:** deployment not automatic)
+   - Creates and pushes Git tag for the release
+   - Rebases `hotfix` branch onto `master`
+   - Rebases `dev` branch onto `master` (done last to ensure `release-candidate` stays in sync with `dev`)
+
+### Hotfix Flow Example
+
+1. **Initial State**: Commit `A` merges to `dev`
+
+   - `release-candidate` is reset to `dev`, version-bumped (commit `B`)
+   - `release-candidate` now contains: `A` + `B`
+
+2. **Hotfix Process**: Fix (commit `C`) merges to `hotfix` branch
+
+   - `release-candidate` is reset to `hotfix`, dropping commits `A` and `B`, and is version-bumped (commit `D`)
+   - `release-candidate` now contains: `C` + `D`
+
+3. **Production Release**: Manual trigger of `ff-release-candidate-to-master.yml`
+   - `master` is fast-forwarded to match `release-candidate` (`C` + `D`)
+   - `hotfix` is rebased on `master` (synced with `C` + `D`)
+   - `dev` is rebased on `master` (now contains `C` + `D` + `A`)
+   - The `dev` rebase triggers a workflow that:
+     - Resets `release-candidate` to `dev`
+     - Version-bumps `release-candidate` (new commit `B'`)
+     - `release-candidate` now contains: `C` + `D` + `A` + `B'`
+
+Result: All branches contain the hotfix (`C` + `D`). The development work (`A`) remains in `dev` and `release-candidate`, ready for the next production release via the same process.
 
 ## Detailed Workflows
-Below is a breakdown of each .yml file's responsibilities and when they run.
 
-### 1. checks.yml
+Below is a breakdown of each workflow file's responsibilities and when they run.
 
-* Triggers on all branches and all tags.
-* Performs:
-  * Setup (Node install, caching)
-  * Lint
-  * Test
-* If the branch is `dev` or it's a tag, then it also builds & pushes an image, and optionally deploys.
+### Shared Workflow Files (This Repository)
 
-This is our "global CI check" pipeline. It ensures code quality and runs unit tests on every commit.
+#### 1. reset.yml
 
-### 2. merge-to-dev-or-hotfix.yml
+- Used by **merge-to-dev-or-hotfix.yml** to reset `release-candidate` to whichever branch was just merged (`dev` or `hotfix`).
+- Runs `git reset --hard origin/<base-ref>` and force-pushes back to `<target-ref>`.
 
-* **Triggers** on `push` events to either the `dev` branch or the `hotfix` branch.
-* Once a PR merges into `dev` or `hotfix`, this workflow does:
+#### 2. bump.yml
+
+- Also used in **merge-to-dev-or-hotfix.yml** after the reset.
+- Runs `conventional-recommended-bump` to automatically determine if the version should be patch/minor/major, then commits and pushes the new `package.json`
+
+#### 3. build.yml
+
+- Builds and pushes a Docker image to GitHub Container Registry (GHCR).
+- The image tag is typically `<package.json version>-<git SHA>`.
+
+#### 4. tag-image.yml
+
+- **After** building an image, we sometimes want an additional "friendly" tag. E.g., `latest` for `master` or `staging` for `release-candidate`.
+- This workflow pulls the previously built image and re‐tags/pushes it to GHCR.
+
+#### 5. fast-forward.yml
+
+- Called to do a `--ff-only` merge from a source branch (e.g. `release-candidate`) to a target branch (e.g. `master`).
+- If there are commits on the target branch that aren't in the source, fast-forward fails. That's when we fallback to `rebase.yml`.
+
+#### 6. rebase.yml
+
+- Uses rebase to sync the target branch from the source branch
+- A **force push** is required after rebasing, as the commit SHAs will change.
+
+#### 7. git-tag.yml
+
+- Creates a new Git tag in the format `v<version>` from the package.json version value.
+- Pushes the newly created tag to the remote repository.
+
+#### 8. ff-or-rebase.yml
+
+- Attempts a fast-forward merge, falling back to rebase if necessary.
+
+### Main Repository Workflows (each repository)
+
+These workflows lives in each of the individual repository.
+
+#### 1. checks.yml
+
+- Triggers on all branches and all tags.
+- Performs:
+  - Setup (Node install, caching)
+  - Lint
+  - Test
+- If the branch is `dev` or it's a tag, then it also builds & pushes an image, and optionally deploys.
+
+This is our "global CI check" pipeline. It ensures code quality (`linting`) and runs unit tests on each code changes.
+
+#### 2. merge-to-dev-or-hotfix.yml
+
+- **Triggers** on `push` events to either the `dev` branch or the `hotfix` branch.
+- Once a PR merges into `dev` or `hotfix`, this workflow does:
   1. **Reset**` release-candidate` = `dev` (or hotfix)
-  2. **Bump** version (via Semantic Release) on `release-candidate`
-  3. **Build** Docker image from `release-candidate`
-  4. **Tag** the built image (usually "staging")
+  2. **Bump** version (via `conventional-recommended-bump`) on `release-candidate`
+  3. **Builds** a Docker image from `release-candidate`
+  4. **Tag** the built image (usually "staging") and made available in staging. (**NOTE:** deployment is not done automatically)
 
 This means that every merge into `dev` or `hotfix` automatically flows into `release-candidate` for our staging environment.
 
-### 3. ff-release-candidate-to-master.yml
-
-* Manually triggered with workflow_dispatch.
-* Steps:
-  * **Fast‐forward** `master` from `release-candidate`.
-  * **Tag** the image with `latest` for production.
-  * **Create a Git tag** for the release and push it to the remote.
-  * **Fast‐forward or rebase** `dev` from `master`.
-  * **Fast‐forward or rebase** `hotfix` from `master`.
+#### 3. ff-release-candidate-to-master.yml
 
 This job is manually triggered once staging testing passed. This is the final step in releasing to production. `master` is updated, a production image is pushed, and we sync `dev` and `hotfix` (using fast-forward or rebase) so that everything is consistent with production.
 
-### 4. reset.yml
-* Used by **merge-to-dev-or-hotfix.yml** to reset `release-candidate` to whichever branch was just merged (`dev` or `hotfix`).
-* Runs `git reset --hard origin/<base-ref>` and force-pushes back to `<target-ref>`.
-
-### 5. bump.yml
-* Also used in **merge-to-dev-or-hotfix.yml** after the reset.
-* Runs `semantic-release` to automatically determine if the version should be patch/minor/major, then commits and pushes the new `package.json` amd `package-lock.json` version.
-
-### 6. build.yml
-* Builds and pushes a Docker image to GitHub Container Registry (GHCR).
-* The image tag is typically `<package.json version>-<git SHA>`.
-
-### 7. tag-image.yml
-* **After** building an image, we sometimes want an additional "friendly" tag. E.g., `latest` for `master` or `staging` for `release-candidate`.
-* This workflow pulls the previously built image and re‐tags/pushes it to GHCR.
-
-### 8. fast-forward.yml
-* Called to do a `--ff-only` merge from a source branch (e.g. `release-candidate`) to a target branch (e.g. `master`).
-* If there are commits on the target branch that aren't in the source, fast-forward fails. That's when we fallback to `rebase.yml`.
-
-### 9. ff-or-rebase.yml
-* It attempts a **fast-forward** merge first, which is a clean way to integrate changes without creating a merge commit.
-* If the fast-forward merge fails (due to the target branch having diverged), it falls back to a **rebase** strategy.
-* A **force push** is required after rebasing, as the commit SHAs will change.
-
-### 10. git-tag.yml
-* Creates a new Git tag in the format `v<version>` from the package.json version value.
-* Pushes the newly created tag to the remote repository.
-
-## Scenarios & How the Pipelines Behave
-Below are the main scenarios to illustrate how merges/fast‐forwards/rebases happen.
-
-### A. Normal Feature Flow (feat → dev → rc → master)
-1. **Feature** branches get merged into `dev`.
-2. **merge-to-dev-or-hotfix.yml** triggers:
-  * Resets `release-candidate` = `dev`
-  * Bumps version on `release-candidate`
-  * Builds & tags a Docker image for staging
-3. **Manual check** & QA on staging environment.
-4. **Manually trigger** `ff-release-candidate-to-master.yml`:
-  * **Fast‐forward** `master` ← `release-candidate`
-  * Tag Docker image as `latest`
-  * A git tag is created from the version bump and is pushed to remote
-  * **Fast‐forward or rebase** `dev` from `master`. So dev has the version bump commit and in sync with master
-  * **Fast‐forward or rebase** `hotfix` from `master`. So hotfix is in sync with master.
-
-### B. Hotfix Flow (fix → hotfix → rc → master)
-1. **Hotfix** branch merges into `hotfix`.
-2. Same pipeline triggers:
-  * Resets `release-candidate` = `hotfix`
-  * Bumps version on `release-candidate`
-  * Builds & tags the Docker image for staging
-3. **Manual check** & QA on staging environment.
-4. **Manually trigger** `ff-release-candidate-to-master.yml` again:
-     * Fast‐forward `master` ← `release-candidate`
-     * Tag Docker image as latest
-     * A git tag is created from the version bump and is pushed to remote
-     * **Fast‐forward or rebase** `dev` from `master` so that dev has the hotfix and in sync with master
-     * **Fast‐forward or rebase** `hotfix` from `master`. So hotfix has the version bump commit and in sync with master
-
-### C. Dev Already Has New Commits When a Hotfix Lands
-1. `dev` has some new commits that are not yet in `master`.
-1. A critical `hotfix` is merged into `hotfix`.
-1. `release-candidate` is reset to `hotfix`, version is bumped, image is built.
-1. **Manually trigger** `ff-release-candidate-to-master.yml`
-     * Fast‐forward `master` ← `release-candidate`
-     * Tag Docker image as latest
-     * A git tag is created from the version bump and is pushed to remote
-     * **Fast‐forward or rebase** `dev` from `master`. Fast-forward will fail due to commits in dev that is not in master
-       * Pipeline will attempt a rebase instead, replaying dev's new commits on top of master (which has the hotfix)
-       * No merge commit is created; dev is force‐pushed with rewritten commits.
-       * Dev has now all the commits in master + existing commits replayed on top of it.
-    * **Fast‐forward or rebase** `hotfix` from `master`.      * **Fast‐forward or rebase** `dev` from `master`. Fast-forward will fail due to commits in dev that is not in master
-
-## When Do We Fast‐Forward vs. Rebase?
-* The workflow **ff-or-rebase.yml** first attempts a **Fast‐forward** (`git merge --ff-only`) whenever we synchronize from `master` to `dev`/`hotfix`:
-  * If the target branch is strictly behind `master`, the fast‐forward is successful, and no extra commit is introduced.
-  * If the target branch has diverged (i.e., it has commits that `master` doesn't), a fast‐forward is not possible.
-* **Rebase** is the fallback when fast‐forward fails. We replay `dev` (or `hotfix`) commits on top of `master`, creating a linear history but rewriting commit SHAs. A force push is required to update the remote.
-*  does this
-
-## FAQ
-
-**1. Why not always use rebase?**
-
-    We prefer a fast‐forward merge when possible, because it does not rewrite commits. If a branch is strictly behind master, a fast-forward is the cleanest approach.
-
-**1. Why do we force‐push on rebase?**
-
-  Because rebasing changes commit SHAs, we must overwrite the remote branch with the new commits.
-
-**1. What if a developer has already pulled the old dev commits locally?**
-
-  They will have to git pull --rebase or otherwise re-sync. This is an accepted tradeoff for having a linear history with no merge commit.
-
-**1. How do we ensure staging is consistent?**
-
-  Whenever code merges into dev or hotfix, we rebuild & redeploy on release-candidate. That environment is staging. Once tested, we promote the same commits (fast‐forward) into master.
-
-## File Reference
-
-Below is a quick reference to each workflow files.
-
-Workflow files in the individual repositories:
-
-* **checks.yml** – Runs on every commit/branch/tag to do lint, test, optional build & deploy.
-* **merge-to-dev-or-hotfix.yml** – Resets `release-candidate` = `dev`/`hotfix`, bumps version, builds image.
-* **ff-release-candidate-to-master.yml** – Manual workflow to fast‐forward `master` from `release-candidate`, then sync changes back to `dev` and `hotfix` (fast‐forward or rebase).
-
-Shared workflow files (lives in this repo):
-
-* **build.yml** – Called to build & push Docker images.
-* **bump.yml** – Bumps `package.json` version with semantic‐release.
-* **fast-forward.yml** – Utility workflow that merges with `--ff-only`.
-* **ff-or-rebase.yml** – Attempts a fast-forward merge, falling back to rebase if necessary.
-* **reset.yml** – Hard resets one branch to another.
-* **tag-image.yml** – Pull an existing image, re‐tag, and push under a new name.
-* **git-tag.yml** – Creates a new Git tag in the format `v<version>` from the package.json version value.
+- Manually triggered in the GitHub Actions UI (i.e. workflow_dispatch)
+- Steps:
+  - **Fast‐forwards** `master` from `release-candidate`.
+  - **Tags** the Docker image with `latest` for production.
+  - **Creates a Git tag** for the release and push it to the remote.
+  - Uses **rebase** to sync `hotfix` from `master`.
+  - Uses **rebase** to sync `dev` from `master`.
