@@ -32,6 +32,22 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           ref: ${{ inputs.ref }}
           fetch-tags: true
+          fetch-depth: 0
+
+      - name: Debug git state
+        run: |
+          echo "### Current commit details ###"
+          git rev-parse HEAD
+          git log -1 --pretty=format:"%h %s %an %ad"
+          
+          echo -e "\n### Recent commits ###"
+          git log -5 --pretty=format:"%h %s %an %ad"
+          
+          echo -e "\n### Tags ###"
+          git tag -l
+          
+          echo -e "\n### Package.json ###"
+          cat package.json | grep version
 
       - name: Get package version
         id: get-version
