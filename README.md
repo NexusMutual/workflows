@@ -48,7 +48,7 @@ flowchart TD
     B -->|"(1b) Merge triggers"| C_merge
     G -->|"(1b) Merge triggers"| C_merge
     
-    C_merge -->|"(2) Resets and syncs rc + version bump + push image"| RC
+    C_merge -->|"(2) Resets and syncs rc + version bump + build image"| RC
 
     RC -->|"(3a) Manual step: ff-release-candidate-to-master.yml"| D
     D -->|"(3b) rebases to"| B
