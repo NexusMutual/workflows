@@ -29,27 +29,26 @@ flowchart TD
     %% Nodes
     A[Feature Branches]
     B[dev]
-    C_dev_merge[merge-to-dev-or-hotfix.yml]
     H[Hotfix Branches]
     G[hotfix]
-    C_hotfix_merge[merge-to-dev-or-hotfix.yml]
+    C_merge[merge-to-dev-or-hotfix.yml]
     RC[release-candidate]
     D[master]
 
     %% Dev Flow
     subgraph Dev Flow
-        A -->|"(1) Merge Pull Request"| B
-        B -->|"(2a) Merge triggers job"| C_dev_merge
+        A -->|"(1a) Merge Pull Request"| B
     end
 
     %% Hotfix Flow
     subgraph Hotfix Flow
-        H -->|"(1) Merge Pull Request"| G
-        G -->|"(2a) Merge triggers job"| C_hotfix_merge
+        H -->|"(1a) Merge Pull Request"| G
     end
 
-    C_dev_merge -->|"(2b) Resets and syncs rc + version bump + push image"| RC
-    C_hotfix_merge -->|"(2b) Resets and syncs rc + version bump + push image"| RC
+    B -->|"(1b) Merge triggers"| C_merge
+    G -->|"(1b) Merge triggers"| C_merge
+    
+    C_merge -->|"(2) Resets and syncs rc + version bump + push image"| RC
 
     RC -->|"(3a) Manual step: ff-release-candidate-to-master.yml"| D
     D -->|"(3b) rebases to"| B
@@ -59,10 +58,11 @@ flowchart TD
 ### Normal Flow
 
 1. **Code Integration**: Branches are merged to either `dev` or `hotfix`
-2. **Staging Preparation**: Merge triggers `merge-to-dev-or-hotfix.yml` workflow:
+   - Merge triggers `merge-to-dev-or-hotfix.yml` workflow
+2. **Staging Preparation**: `merge-to-dev-or-hotfix.yml` workflow:
    - Resets `release-candidate` to match the merged branch
    - Bumps version using `conventional-recommended-bump`
-   - Builds and pushes Docker image (`vX.X.X-SHA`) to staging environment
+   - Builds and pushes Docker image (`vX.X.X-SHA`) to staging environment (**NOTE:** deployment not automatic)
 3. **Production Release**: After staging validation, manually trigger `ff-release-candidate-to-master.yml`:
    - Fast-forwards `master` to match `release-candidate`
    - Tags Docker image as `latest` for production (**NOTE:** deployment not automatic)
@@ -166,7 +166,7 @@ This means that every merge into `dev` or `hotfix` automatically flows into `rel
 
 #### 3. ff-release-candidate-to-master.yml
 
-This job is manually triggered once staging testing passed. This is the final step in releasing to production. `master` is updated, a production image is pushed, and we sync `dev` and `hotfix` (using fast-forward or rebase) so that everything is consistent with production.
+This job is manually triggered once staging testing passed. This is the final step in releasing to production. `master` is updated, a production image is pushed, and we sync `dev` and `hotfix` via rebase so that everything is consistent with production.
 
 - Manually triggered in the GitHub Actions UI (i.e. workflow_dispatch)
 - Steps:
