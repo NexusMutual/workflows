@@ -38,7 +38,7 @@ jobs:
 
       - name: Fast-forward merge
         run: |
-          echo "Fast-forward merging to ${{ inputs.target-ref }} branch from source ${{ inputs.source-ref }} branch"
+          echo "Fast-forwarding ${{ inputs.source-ref }} to ${{ inputs.target-ref }}"
           git fetch origin ${{ inputs.source-ref }}
           git merge origin/${{ inputs.source-ref }} --ff-only
           git push origin ${{ inputs.target-ref }}

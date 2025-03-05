@@ -11,7 +11,7 @@ on:
         required: true
       bump-command:
         type: string
-        default: "BUMP=$(timeout 5s npx conventional-recommended-bump --config .github/config/conventional-bump-setup.js --verbose | head -n1) || true; if [ ! -z \"$BUMP\" ]; then npm version \"$BUMP\" --no-git-tag-version; else echo \"No version bump\"; fi"
+        default: "echo Meep meep no bump command && exit 1"
       node-version:
         type: string
         default: 20

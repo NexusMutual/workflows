@@ -23,6 +23,12 @@ jobs:
     runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
     steps:
+      - name: Validate
+      if: github.event.inputs.target-ref == 'master'
+      run: |
+        echo "Target branch cannot be master"
+        exit 1
+
       - name: Create deployooor app token
         uses: actions/create-github-app-token@v1
         id: app-token
