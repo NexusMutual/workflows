@@ -44,9 +44,8 @@ jobs:
 
       - name: Rebase and push
         run: |
-          echo "Rebasing ${{ inputs.target-ref }} branch onto ${{ inputs.source-ref }} branch"
+          echo "Rebasing ${{ inputs.target-ref }} branch on top of ${{ inputs.source-ref }} branch"
           git config --local user.email "deployooor@nexusmutual.io"
           git config --local user.name "Deployooor"
           git rebase origin/${{ inputs.source-ref }} --rebase-merges
           git push origin ${{ inputs.target-ref }} --force
-          echo "✅ Rebase and push successful"
