@@ -65,8 +65,7 @@ jobs:
               }
 
               if (tagExists) {
-                console.log(`Tag ${version} already exists. Skipping release creation.`);
-                return;
+                core.setFailed(`Tag ${version} already exists. Failing git tag and GitHub release job.`);
               }
 
               console.log(`Creating new release: ${version} at commit ${commitHash}`);

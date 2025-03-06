@@ -68,5 +68,6 @@ jobs:
             git commit -m "chore(release): v$(jq -r .version package.json) [skip ci]"
             git push origin ${{ inputs.ref }}
           else
-            echo "No changes to commit. Skipping commit and push."
+            echo "No changes to commit. Failing bump job."
+            exit 1
           fi
