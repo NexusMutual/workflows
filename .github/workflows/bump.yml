@@ -62,12 +62,12 @@ jobs:
           git config --local user.email "deployooor@nexusmutual.io"
           git config --local user.name "Version bumpooor"
 
-          # Check if there are changes to commit
-          if [[ -n "$(git status --porcelain package.json package-lock.json)" ]]; then
-            git add package.json package-lock.json
-            git commit -m "chore(release): v$(jq -r .version package.json) [skip ci]"
-            git push origin ${{ inputs.ref }}
-          else
+          # check if there are changes to commit
+          if [[ -z "$(git status --porcelain package.json package-lock.json)" ]]; then
             echo "No changes to commit. Failing bump job."
             exit 1
           fi
+
+          git add package.json package-lock.json
+          git commit -m "chore(release): v$(jq -r .version package.json) [skip ci]"
+          git push origin ${{ inputs.ref }}
