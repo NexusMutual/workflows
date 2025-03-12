@@ -14,7 +14,7 @@ on:
         default: "echo Meep meep no bump command && exit 1"
       node-version:
         type: string
-        default: 20
+        default: '22'
     secrets:
       DEPLOYER_APP_ID:
         required: true
