@@ -1,4 +1,4 @@
-name: Fast forward or rebase branch
+name: Rebase branch
 
 on:
   workflow_call:
