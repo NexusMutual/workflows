@@ -22,7 +22,6 @@ on:
         description: "Error message to display if the workflow is found"
       token:
         type: string
-        default: ${{ github.token }}
         description: "GitHub token to use for API requests"
 
 jobs:
@@ -32,7 +31,7 @@ jobs:
       - name: Check workflow status
         uses: actions/github-script@v7
         with:
-          github-token: ${{ inputs.token }}
+          github-token: ${{ inputs.token || github.token }}
           script: |
             const workflows = await github.rest.actions.listWorkflowRunsForRepo({
               owner: context.repo.owner,
