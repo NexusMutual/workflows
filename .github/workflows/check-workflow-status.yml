@@ -1,5 +1,5 @@
 # This workflow checks if the given workflow name and workflow status exists and fails or continues based on the fail-if-exists flag
-name: Wait For Workflow
+name: Check Workflow Status
 
 on:
   workflow_call:

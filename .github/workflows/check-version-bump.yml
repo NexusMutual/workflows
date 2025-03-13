@@ -1,5 +1,5 @@
 # Helper workflow to validate if commits on the given ref trigger a version bump compared to the latest git tag.
-name: Validate Version Bump
+name: Check Version Bump
 
 on:
   workflow_call:
