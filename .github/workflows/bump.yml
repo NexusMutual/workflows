@@ -26,11 +26,6 @@ jobs:
     runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
     steps:
-      - name: Fingerprint PK
-        run: |
-          echo "${{ secrets.DEPLOYER_APP_PK }}" | wc -l
-          echo "${{ secrets.DEPLOYER_APP_PK }}" | sha256sum
-
       - name: Create deployooor app token
         uses: actions/create-github-app-token@v1
         id: app-token
