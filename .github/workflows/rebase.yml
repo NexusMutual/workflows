@@ -6,7 +6,7 @@ on:
       environment:
         type: string
         required: true
-      base-ref:
+      source-ref:
         type: string
         required: true
       target-ref:
@@ -35,18 +35,17 @@ jobs:
         with:
           app-id: ${{ secrets.DEPLOYER_APP_ID }}
           private-key: ${{ secrets.DEPLOYER_APP_PK }}
-          #repositories: ${{ inputs.repository }}
 
       - uses: actions/checkout@v4
         with:
           token: ${{ steps.app-token.outputs.token }}
-          repository: ${{ inputs.repository }}
           ref: ${{ inputs.target-ref }}
+          fetch-depth: 0
 
-      - name: Rebase
+      - name: Rebase and push
         run: |
+          echo "Rebasing ${{ inputs.target-ref }} branch on top of ${{ inputs.source-ref }} branch"
           git config --local user.email "deployooor@nexusmutual.io"
           git config --local user.name "Deployooor"
-          git fetch --all
-          git rebase origin/${{ inputs.base-ref }} --rebase-merges
+          git rebase origin/${{ inputs.source-ref }} --rebase-merges
           git push origin ${{ inputs.target-ref }} --force

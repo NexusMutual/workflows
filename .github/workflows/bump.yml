@@ -11,9 +11,10 @@ on:
         required: true
       bump-command:
         type: string
+        default: "echo Meep meep no bump command && exit 1"
       node-version:
         type: string
-        default: 20
+        default: '22'
     secrets:
       DEPLOYER_APP_ID:
         required: true
@@ -25,29 +26,24 @@ jobs:
     runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
     steps:
-      - name: Fingerprint PK
-        run: |
-          echo "${{ secrets.DEPLOYER_APP_PK }}" | wc -l
-          echo "${{ secrets.DEPLOYER_APP_PK }}" | sha256sum
-
       - name: Create deployooor app token
         uses: actions/create-github-app-token@v1
         id: app-token
         with:
           app-id: ${{ secrets.DEPLOYER_APP_ID }}
           private-key: ${{ secrets.DEPLOYER_APP_PK }}
-          #repositories: ${{ inputs.repository }}
 
       - uses: actions/checkout@v4
         with:
           token: ${{ steps.app-token.outputs.token }}
           ref: ${{ inputs.ref }}
-#          repository: ${{ inputs.repository }}
+          fetch-depth: 0
+          fetch-tags: true
 
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
-          cache: 'npm'
+          cache: "npm"
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
@@ -56,19 +52,17 @@ jobs:
       - name: Bump version
         run: ${{ inputs.bump-command }}
 
-      - name: Get package.json version
-        run: echo VERSION=$(node -p 'require("./package.json").version') >> $GITHUB_ENV
-
       - name: Commit and push
         run: |
           git config --local user.email "deployooor@nexusmutual.io"
           git config --local user.name "Version bumpooor"
-          git add .
-          git commit -m "chore: release v${{ env.VERSION }} [skip ci]"
-          git push origin ${{ inputs.ref }}
 
-      - name: Tag
-        if: inputs.ref == 'master'
-        run: |
-          git tag v${{ env.VERSION }}
-          git push origin --tags
+          # check if there are changes to commit
+          if [[ -z "$(git status --porcelain package.json package-lock.json)" ]]; then
+            echo "No changes to commit. Failing bump job."
+            exit 1
+          fi
+
+          git add package.json package-lock.json
+          git commit -m "chore(release): v$(jq -r .version package.json) [skip ci]"
+          git push origin ${{ inputs.ref }}

@@ -1,0 +1,51 @@
+# This workflow checks if the given workflow name and workflow status exists and fails or continues based on the fail-if-exists flag
+name: Check Workflow Status
+
+on:
+  workflow_call:
+    inputs:
+      workflow-name:
+        type: string
+        required: true
+        description: "Name of the workflow to check (e.g., merge-to-dev-or-hotfix.yml)"
+      workflow-status:
+        type: string
+        required: true
+        description: "Status to check for (e.g., in_progress, queued, completed)"
+      fail-if-exists:
+        type: boolean
+        default: true
+        description: "Whether to fail if matching workflows are found (true) or continue (false)"
+      error-message:
+        type: string
+        default: "Workflow is currently running. Please retry after it completes."
+        description: "Error message to display if the workflow is found"
+      token:
+        type: string
+        description: "GitHub token to use for API requests"
+
+jobs:
+  wait-for-workflow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check workflow status
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ inputs.token || github.token }}
+          script: |
+            const workflows = await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: '${{ inputs.workflow-name }}',
+              status: '${{ inputs.workflow-status }}',
+            });
+
+            if (workflows.data.total_count > 0) {
+              if (${{ inputs.fail-if-exists }}) {
+                core.setFailed(`${{ inputs.workflow-name }}: ${{ inputs.error-message }}`);
+              } else {
+                console.log(`Found ${{ inputs.workflow-status }} workflows for ${{ inputs.workflow-name }}. Continuing as configured.`);
+              }
+            } else {
+              console.log(`No ${{ inputs.workflow-status }} workflows found for ${{ inputs.workflow-name }}. Proceeding.`);
+            }

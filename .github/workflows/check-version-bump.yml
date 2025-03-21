@@ -1,0 +1,79 @@
+# Helper workflow to validate if commits on the given ref trigger a version bump compared to the latest git tag.
+name: Check Version Bump
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      ref:
+        type: string
+        required: true
+        description: "Git reference to checkout"
+      bump-command:
+        type: string
+        required: true
+        description: "Command to determine if version bump is needed. Should return the type of bump or empty if not needed"
+      node-version:
+        type: string
+        default: '22'
+        description: "Node.js version to use"
+    outputs:
+      triggers_bump:
+        description: "Whether a version bump is needed"
+        value: ${{ jobs.validate.outputs.triggers_bump }}
+      bump_type:
+        description: "Type of bump needed (if any)"
+        value: ${{ jobs.validate.outputs.bump_type }}
+    secrets:
+      DEPLOYER_APP_ID:
+        required: true
+      DEPLOYER_APP_PK:
+        required: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    outputs:
+      triggers_bump: ${{ steps.check-bump.outputs.triggers_bump }}
+      bump_type: ${{ steps.check-bump.outputs.bump_type }}
+    steps:
+      - name: Create deployooor app token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOYER_APP_ID }}
+          private-key: ${{ secrets.DEPLOYER_APP_PK }}
+
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          ref: ${{ inputs.ref }}
+          # Needs commit history and tags determine version bump
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --prefer-offline --no-audit --no-fund
+
+      - id: check-bump
+        run: |
+          echo "Running bump command to check for version changes..."
+          BUMP=$(${{ inputs.bump-command }}) || true
+          
+          if [ -n "$BUMP" ] && [[ "$BUMP" != *"No version bump needed"* ]]; then
+            echo "A version bump is needed: '$BUMP'"
+            echo "triggers_bump=true" >> $GITHUB_OUTPUT
+            echo "bump_type=${BUMP}" >> $GITHUB_OUTPUT
+          else
+            echo "No version bump needed."
+            echo "triggers_bump=false" >> $GITHUB_OUTPUT
+          fi

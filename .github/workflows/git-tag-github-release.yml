@@ -1,0 +1,84 @@
+name: GitHub Release and git tag
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      ref:
+        type: string
+        required: true
+    secrets:
+      DEPLOYER_APP_ID:
+        required: true
+      DEPLOYER_APP_PK:
+        required: true
+
+jobs:
+  git-tag-release:
+    runs-on: ubuntu-22.04
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Create deployooor app token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOYER_APP_ID }}
+          private-key: ${{ secrets.DEPLOYER_APP_PK }}
+
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          ref: ${{ inputs.ref }}
+          fetch-tags: true
+
+      - name: Get current commit hash
+        id: get-commit-hash
+        run: |
+          COMMIT_HASH=$(git rev-parse HEAD)
+          echo "Current commit hash: $COMMIT_HASH"
+          echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_OUTPUT
+
+      - name: Get package version
+        id: get-version
+        run: |
+          VERSION=v$(jq -r .version package.json)
+          echo "Package version: $VERSION"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create git tag and GitHub release
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const version = '${{ steps.get-version.outputs.VERSION }}';
+            const commitHash = '${{ steps.get-commit-hash.outputs.COMMIT_HASH }}';
+
+            try {
+              let tagExists = false;
+              try {
+                await exec.exec('git', ['rev-parse', version]);
+                tagExists = true;
+              } catch (e) {
+                tagExists = false;
+              }
+
+              if (tagExists) {
+                core.setFailed(`Tag ${version} already exists. Failing git tag and GitHub release job.`);
+              }
+
+              console.log(`Creating new release: ${version} at commit ${commitHash}`);
+              const response = await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: version,
+                name: version,
+                target_commitish: commitHash,
+                generate_release_notes: true,
+              });
+
+              console.log(`Release created: ${response.data.html_url}`);
+            } catch (error) {
+              core.setFailed(`Failed to create release: ${error.message}`);
+            }

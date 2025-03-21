@@ -35,12 +35,10 @@ jobs:
         with:
           app-id: ${{ secrets.DEPLOYER_APP_ID }}
           private-key: ${{ secrets.DEPLOYER_APP_PK }}
-          #repositories: ${{ inputs.repository }}
 
       - uses: actions/checkout@v4
         with:
           token: ${{ steps.app-token.outputs.token }}
-          repository: ${{ inputs.repository }}
           ref: ${{ inputs.target-ref }}
 
       - name: Print out values

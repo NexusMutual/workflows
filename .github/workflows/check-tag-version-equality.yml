@@ -1,0 +1,73 @@
+# Helper workflow to determine if a given ref has the same version as the latest git tag. Fails if the package.json versions are the same
+name: Check Tag Version Equality
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      ref:
+        type: string
+        required: true
+        description: "Git reference to checkout"
+      node-version:
+        type: string
+        default: '22'
+        description: "Node.js version to use"
+    secrets:
+      DEPLOYER_APP_ID:
+        required: true
+      DEPLOYER_APP_PK:
+        required: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Create deployooor app token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOYER_APP_ID }}
+          private-key: ${{ secrets.DEPLOYER_APP_PK }}
+
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          ref: ${{ inputs.ref }}
+          # Need git tags to determine version comparison
+          fetch-tags: true
+
+      - name: Get package.json version
+        id: package-version
+        run: |
+          PACKAGE_VERSION=$(jq -r .version package.json)
+          echo "version=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
+          echo "Package version: $PACKAGE_VERSION"
+
+      - name: Get latest git tag version
+        id: tag-version
+        run: |
+          # git tags has v prefix
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          LATEST_TAG_VERSION=${LATEST_TAG#v} # Remove 'v' prefix
+          echo "version=$LATEST_TAG_VERSION" >> $GITHUB_OUTPUT
+          echo "Latest tag version: $LATEST_TAG_VERSION (from tag: $LATEST_TAG)"
+
+      - name: Validate version bump
+        run: |
+          PACKAGE_VERSION="${{ steps.package-version.outputs.version }}"
+          LATEST_TAG_VERSION="${{ steps.tag-version.outputs.version }}"
+
+          echo "Comparing package version ($PACKAGE_VERSION) with latest tag version ($LATEST_TAG_VERSION)"
+
+          if [ "$PACKAGE_VERSION" = "$LATEST_TAG_VERSION" ]; then
+            echo "::error::The package version to be released ($PACKAGE_VERSION) is the same as the latest tag version ($LATEST_TAG_VERSION)"
+            echo "::warning::Commit messages on the branch must include changes beyond 'docs', 'style', 'test', or 'ci'"
+            echo "::info::Please ensure your commits reflect meaningful changes to trigger an automatic version bump."
+            exit 1
+          fi
+
+          echo "Version bump validation passed."
