@@ -1,0 +1,106 @@
+name: Open PR
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      repository:
+        type: string
+        description: "The repository to checkout and make changes to (format: owner/repo)"
+        required: true
+      branch-name:
+        type: string
+        required: true
+      change-command:
+        type: string
+        required: true
+      commit-message:
+        type: string
+        required: true
+      pr-body:
+        type: string
+        default: "This PR was automatically created by the open-pr workflow."
+      base-branch:
+        type: string
+        default: "dev"
+      owner:
+        type: string
+        default: "NexusMutual"
+      node-version:
+        type: string
+        default: "22"
+    secrets:
+      DEPLOYER_APP_ID:
+        required: true
+      DEPLOYER_APP_PK:
+        required: true
+
+jobs:
+  open-pr:
+    runs-on: ubuntu-22.04
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Create deployooor app token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOYER_APP_ID }}
+          private-key: ${{ secrets.DEPLOYER_APP_PK }}
+          owner: ${{ inputs.owner }}
+          repositories: ${{ inputs.repository }}
+
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          repository: '${{ inputs.owner }}/${{ inputs.repository }}'
+          ref: ${{ inputs.base-branch }}
+
+      - name: Create and checkout new branch
+        run: |
+          git checkout -b ${{ inputs.branch-name }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Make changes
+        run: ${{ inputs.change-command }}
+
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "deployooor@nexusmutual.io"
+          git config --local user.name "PR Creator Bot"
+
+          # check if there are changes to commit
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "No changes to commit. Failing PR creation job."
+            exit 1
+          fi
+
+          git add .
+          git commit -m "${{ inputs.commit-message }}"
+          git push origin ${{ inputs.branch-name }}
+
+      - name: Create Pull Request
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            try {
+              const response = await github.rest.pulls.create({
+                owner: '${{ inputs.owner }}',
+                repo: '${{ inputs.repository }}',
+                title: '${{ inputs.commit-message }}',
+                head: '${{ inputs.branch-name }}',
+                base: '${{ inputs.base-branch }}',
+                body: '${{ inputs.pr-body }}'
+              });
+              
+              console.log(`Pull request created: ${response.data.html_url}`);
+            } catch (error) {
+              core.setFailed(`Failed to create pull request: ${error.message}`);
+            }
