@@ -20,11 +20,17 @@ on:
         required: true
       DEPLOYER_APP_PK:
         required: true
+    outputs:
+      bumped_version:
+        description: "The version after bumping"
+        value: ${{ jobs.bump.outputs.bumped_version }}
 
 jobs:
   bump:
     runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
+    outputs:
+      bumped_version: ${{ steps.get-version.outputs.bumped_version }}
     steps:
       - name: Create deployooor app token
         uses: actions/create-github-app-token@v1
@@ -52,6 +58,10 @@ jobs:
       - name: Bump version
         run: ${{ inputs.bump-command }}
 
+      - name: Get bumped version
+        id: get-version
+        run: echo "bumped_version=$(jq -r .version package.json)" >> $GITHUB_OUTPUT
+
       - name: Commit and push
         run: |
           git config --local user.email "deployooor@nexusmutual.io"
@@ -64,5 +74,5 @@ jobs:
           fi
 
           git add package.json package-lock.json
-          git commit -m "chore(release): v$(jq -r .version package.json) [skip ci]"
+          git commit -m "chore(release): v${{ steps.get-version.outputs.bumped_version }} [skip ci]"
           git push origin ${{ inputs.ref }}
