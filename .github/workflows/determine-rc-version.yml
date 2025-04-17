@@ -1,0 +1,71 @@
+name: Determine RC Version
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        type: string
+        default: '22'
+        description: "Node.js version to use"
+      package-name:
+        type: string
+        required: true
+        description: "Name of the npm package"
+      bump-type:
+        type: string
+        required: true
+        description: "Type of version bump (patch, minor, major)"
+    outputs:
+      rc_version:
+        description: "The determined RC version"
+        value: ${{ jobs.determine-rc-version.outputs.rc_version }}
+
+jobs:
+  determine-rc-version:
+    runs-on: ubuntu-22.04
+    outputs:
+      rc_version: ${{ steps.rc_version.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      # Only install minimal dependencies needed for npm version commands
+      - name: Setup npm
+        run: npm install -g npm@latest
+
+      # Update package.json version locally (not committed)
+      # This is needed to determine the base version for the RC
+      - name: Ephemeral version bump
+        run: |
+          npm version "${{ inputs.bump-type }}" --no-git-tag-version
+
+      # Look up existing RC versions on npm and determine the next RC number
+      # For example: 1.2.0-rc1, 1.2.0-rc2, etc.
+      - name: Determine RC version
+        id: rc_version
+        run: |
+          package_name=""
+          base_version="$(cat ./package.json | jq --raw-output .version)"
+          echo "Base version: $base_version"
+          
+          # Find the latest RC version for this base version
+          latest_rc=$(npm view "${{ inputs.package-name }}" versions --json 2>/dev/null | jq -r '.[]' 2>/dev/null | grep "^$base_version-rc[0-9]\+$" | sort -V | tail -n 1 || echo "")
+          
+          if [ -z "$latest_rc" ]; then
+            # No previous RC version found, start with rc1
+            rc_version="${base_version}-rc1"
+          else
+            # Extract RC number and increment it
+            rc_num=$(echo $latest_rc | sed -E "s/${base_version}-rc([0-9]+)/\1/")
+            next_rc=$((rc_num + 1))
+            rc_version="${base_version}-rc${next_rc}"
+          fi
+          
+          echo "RC version: $rc_version"
+          echo "value=$rc_version" >> $GITHUB_OUTPUT
