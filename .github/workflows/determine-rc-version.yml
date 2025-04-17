@@ -1,0 +1,73 @@
+name: Determine RC Version
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        type: string
+        default: '22'
+        description: "Node.js version to use"
+      package-name:
+        type: string
+        required: true
+        description: "Name of the npm package"
+      bump-type:
+        type: string
+        required: true
+        description: "Type of version bump (patch, minor, major)"
+    outputs:
+      rc_version:
+        description: "The determined RC version"
+        value: ${{ jobs.determine-rc-version.outputs.rc_version }}
+
+jobs:
+  determine-rc-version:
+    runs-on: ubuntu-22.04
+    outputs:
+      rc_version: ${{ steps.rc_version.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      # Only install minimal dependencies needed for npm version commands
+      - name: Setup npm
+        run: npm install -g npm@latest
+
+      # Update package.json version locally (not committed)
+      # This is needed to determine the base version for the RC
+      - name: Ephemeral version bump
+        run: |
+          npm version "${{ inputs.bump-type }}" --no-git-tag-version
+
+      # Determine RC version using npm's built-in prerelease functionality
+      - name: Determine RC version
+        id: rc_version
+        run: |
+          # Get the current base version after the bump
+          base_version="$(jq -r .version package.json)"
+          echo "Base version: $base_version"
+          
+          # Check if there are existing RC versions for this base version
+          # Updated regex to match the new format with dot separator (e.g., 2.12.1-rc.0)
+          latest_rc=$(npm view "${{ inputs.package-name }}" versions --json 2>/dev/null | jq -r '.[]' 2>/dev/null | grep "^$base_version-rc\.[0-9]\+$" | sort -V | tail -n 1 || echo "")
+          echo "Latest RC: $latest_rc"
+          
+          if [ -z "$latest_rc" ]; then
+            # No existing RC for this base version - create the first one
+            npm version "$base_version-rc.0" --no-git-tag-version
+          else
+            # Existing RC found - set the version to match it then increment
+            npm version "$latest_rc" --no-git-tag-version
+            npm version prerelease --preid=rc --no-git-tag-version
+          fi
+          
+          rc_version="$(jq -r .version package.json)"
+          
+          echo "RC version: $rc_version"
+          echo "value=$rc_version" >> $GITHUB_OUTPUT
