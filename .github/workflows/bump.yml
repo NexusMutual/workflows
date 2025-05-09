@@ -68,11 +68,11 @@ jobs:
           git config --local user.name "Version bumpooor"
 
           # check if there are changes to commit
-          if [[ -z "$(git status --porcelain package.json package-lock.json)" ]]; then
+          if [[ -z "$(git status --porcelain package.json package-lock.json **/package.json **/package-lock.json)" ]]; then
             echo "No changes to commit. Failing bump job."
             exit 1
           fi
-
-          git add package.json package-lock.json
+          
+          git add package.json package-lock.json **/package.json **/package-lock.json
           git commit -m "chore(release): v${{ steps.get-version.outputs.bumped_version }} [skip ci]"
           git push origin ${{ inputs.ref }}
