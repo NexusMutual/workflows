@@ -31,19 +31,21 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
 
-      # Only install minimal dependencies needed for npm version commands
-      - name: Setup npm
-        run: npm install -g npm@latest
+      # Only install minimal dependencies needed for pnpm version commands
+      - name: Setup pnpm
+        run: pnpm install -g pnpm@latest
 
       # Update package.json version locally (not committed)
       # This is needed to determine the base version for the RC
       - name: Ephemeral version bump
         run: |
-          npm version "${{ inputs.bump-type }}" --no-git-tag-version
+          pnpm version "${{ inputs.bump-type }}" --no-git-tag-version
 
       # Determine RC version using npm's built-in prerelease functionality
       - name: Determine RC version
