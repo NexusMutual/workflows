@@ -62,6 +62,8 @@ jobs:
           git checkout -b ${{ inputs.branch-name }}
 
       - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
 
       - uses: actions/setup-node@v4
         with:
