@@ -41,7 +41,7 @@ jobs:
       # This is needed to determine the base version for the RC
       - name: Ephemeral version bump
         run: |
-          pnpm version "${{ inputs.bump-type }}" --no-git-tag-version
+          pnpm version "${{ inputs.bump-type }}" --no-git-tag-version --no-git-checks
 
       # Determine RC version using npm's built-in prerelease functionality
       - name: Determine RC version
@@ -58,11 +58,11 @@ jobs:
 
           if [ -z "$latest_rc" ]; then
             # No existing RC for this base version - create the first one
-            pnpm version "$base_version-rc.0" --no-git-tag-version
+            pnpm version "$base_version-rc.0" --no-git-tag-version --no-git-checks
           else
             # Existing RC found - set the version to match it then increment
-            pnpm version "$latest_rc" --no-git-tag-version
-            pnpm version prerelease --preid=rc --no-git-tag-version
+            pnpm version "$latest_rc" --no-git-tag-version --no-git-checks
+            pnpm version prerelease --preid=rc --no-git-tag-version --no-git-checks
           fi
 
           rc_version="$(jq -r .version package.json)"
