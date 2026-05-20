@@ -32,9 +32,6 @@ jobs:
           fetch-tags: true
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10.33.0
-      
 
       - uses: actions/setup-node@v4
         with:
@@ -57,12 +54,12 @@ jobs:
           # Get the current base version after the bump
           base_version="$(jq -r .version package.json)"
           echo "Base version: $base_version"
-          
+
           # Check if there are existing RC versions for this base version
           # Updated regex to match the new format with dot separator (e.g., 2.12.1-rc.0)
           latest_rc=$(pnpm view "${{ inputs.package-name }}" versions --json 2>/dev/null | jq -r '.[]' 2>/dev/null | grep "^$base_version-rc\.[0-9]\+$" | sort -V | tail -n 1 || echo "")
           echo "Latest RC: $latest_rc"
-          
+
           if [ -z "$latest_rc" ]; then
             # No existing RC for this base version - create the first one
             pnpm version "$base_version-rc.0" --no-git-tag-version
@@ -71,8 +68,8 @@ jobs:
             pnpm version "$latest_rc" --no-git-tag-version
             pnpm version prerelease --preid=rc --no-git-tag-version
           fi
-          
+
           rc_version="$(jq -r .version package.json)"
-          
+
           echo "RC version: $rc_version"
           echo "value=$rc_version" >> $GITHUB_OUTPUT

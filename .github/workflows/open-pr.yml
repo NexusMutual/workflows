@@ -62,8 +62,6 @@ jobs:
           git checkout -b ${{ inputs.branch-name }}
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10.33.0
 
       - uses: actions/setup-node@v4
         with:
@@ -103,7 +101,7 @@ jobs:
                 base: '${{ inputs.base-branch }}',
                 body: '${{ inputs.pr-body }}'
               });
-              
+
               console.log(`Pull request created: ${response.data.html_url}`);
             } catch (error) {
               core.setFailed(`Failed to create pull request: ${error.message}`);
