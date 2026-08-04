@@ -4,6 +4,8 @@
   - [High‐Level Diagram](#highlevel-diagram)
     - [Normal Flow](#normal-flow)
     - [Hotfix Flow](#hotfix-flow)
+  - [Credentials](#credentials)
+    - [Deployer GitHub App](#deployer-github-app)
   - [Detailed Workflows](#detailed-workflows)
     - [Main Repository Workflows (each repository)](#main-repository-workflows-each-repository)
       - [1. pull-request.yml](#1-pull-requestyml)
@@ -20,6 +22,8 @@
       - [8. check-version-bump.yml](#8-check-version-bumpyml)
       - [9. check-workflow-status.yml](#9-check-workflow-statusyml)
       - [10. check-tag-version-equality.yml](#10-check-tag-version-equalityyml)
+      - [11. determine-rc-version.yml](#11-determine-rc-versionyml)
+      - [12. open-pr.yml](#12-open-pryml)
 
 This repository uses a **Git Flow**‐inspired process with the following branches:
 
@@ -128,6 +132,40 @@ flowchart TD
 
 Result: All branches contain the hotfix (`C` + `D`). The development work (`A`) remains in `dev` and `release-candidate`, ready for the next production release via the same process.
 
+## Credentials
+
+Every call passes its secrets explicitly, or with `secrets: inherit`:
+
+```yaml
+jobs:
+  bump-version:
+    uses: NexusMutual/workflows/.github/workflows/bump.yml@master
+    with:
+      environment: production
+      ref: dev
+    secrets:
+      DEPLOYER_APP_ID: ${{ secrets.DEPLOYER_APP_ID }}
+      DEPLOYER_APP_PK: ${{ secrets.DEPLOYER_APP_PK }}
+```
+
+Each job runs against the [environment](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments) named by its `environment` input. Define these secrets on that environment.
+
+| Secret | Required by | Purpose |
+| --- | --- | --- |
+| `DEPLOYER_APP_ID` | `bump`, `check-tag-version-equality`, `check-version-bump`, `fast-forward`, `git-tag-github-release`, `open-pr`, `rebase`, `reset` | app id of the deployer GitHub App |
+| `DEPLOYER_APP_PK` | as above | private key for the same app |
+| `TOKEN`, `DOCKER_USERNAME`, `DOCKER_PASSWORD` | `build-image`, `tag-image` | GHCR authentication |
+
+`check-workflow-status.yml` and `determine-rc-version.yml` run without secrets.
+
+A repository that publishes to npm does so from its own job, with its own credentials.
+
+### Deployer GitHub App
+
+Workflows requiring `DEPLOYER_APP_ID` mint an installation token with `actions/create-github-app-token`, then check out, commit and push with it.
+
+Install `infra-deployooor` on the calling repository, and add it as a bypass actor on any ruleset guarding the branches it writes to. A missing installation fails the token step before the workflow reaches its own logic.
+
 ## Detailed Workflows
 
 Below is a breakdown of each workflow file's responsibilities and when they run.
@@ -224,3 +262,15 @@ This job is manually triggered in the GitHub Actions UI once staging testing pas
 
 - Compares the version in package.json against the latest git tag version.
 - Fails if they are identical, ensuring meaningful version increments.
+
+#### 11. determine-rc-version.yml
+
+- Applies the given bump type to package.json to get the base version. The change stays local.
+- Reads the versions already published to npm for that package and picks the next free `-rc.<n>` suffix.
+- Outputs `rc_version`.
+
+#### 12. open-pr.yml
+
+- Creates a branch, runs `change-command` against it, commits the result and opens a pull request.
+- Fails when the command leaves the tree unchanged.
+- Takes `owner` and `repository` to target a repository other than the caller.
