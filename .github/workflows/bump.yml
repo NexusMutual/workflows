@@ -46,14 +46,44 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      # Each repository records its package manager in its lockfile.
+      - name: Detect package manager
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ] && [ -f package-lock.json ]; then
+            echo "::error::Both pnpm-lock.yaml and package-lock.json are present, cannot tell which package manager to use"
+            exit 1
+          elif [ -f pnpm-lock.yaml ]; then
+            name=pnpm
+            lockfile=pnpm-lock.yaml
+            install="pnpm install --frozen-lockfile --ignore-scripts --prefer-offline"
+          elif [ -f package-lock.json ]; then
+            name=npm
+            lockfile=package-lock.json
+            install="npm ci --ignore-scripts --prefer-offline --no-audit --no-fund"
+          else
+            echo "::error::Neither pnpm-lock.yaml nor package-lock.json found"
+            exit 1
+          fi
+
+          echo "Detected $name"
+          {
+            echo "name=$name"
+            echo "lockfile=$lockfile"
+            echo "install=$install"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: pnpm/action-setup@v4
+        if: steps.pm.outputs.name == 'pnpm'
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
-          cache: "npm"
-          cache-dependency-path: package-lock.json
+          cache: ${{ steps.pm.outputs.name }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts --prefer-offline --no-audit --no-fund
+        run: ${{ steps.pm.outputs.install }}
 
       - name: Bump version
         run: ${{ inputs.bump-command }}
@@ -63,16 +93,18 @@ jobs:
         run: echo "bumped_version=$(jq -r .version package.json)" >> $GITHUB_OUTPUT
 
       - name: Commit and push
+        env:
+          LOCKFILE: ${{ steps.pm.outputs.lockfile }}
         run: |
           git config --local user.email "deployooor@nexusmutual.io"
           git config --local user.name "Version bumpooor"
 
           # check if there are changes to commit
-          if [[ -z "$(git status --porcelain package.json package-lock.json **/package.json **/package-lock.json)" ]]; then
+          if [[ -z "$(git status --porcelain package.json "$LOCKFILE" **/package.json **/"$LOCKFILE")" ]]; then
             echo "No changes to commit. Failing bump job."
             exit 1
           fi
 
-          git add package.json package-lock.json $(git ls-files "**/package.json" "**/package-lock.json")
+          git add package.json "$LOCKFILE" $(git ls-files "**/package.json" "**/$LOCKFILE")
           git commit -m "chore(release): v${{ steps.get-version.outputs.bumped_version }} [skip ci]"
           git push origin ${{ inputs.ref }}
