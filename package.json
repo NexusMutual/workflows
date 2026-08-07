@@ -1,0 +1,12 @@
+{
+  "name": "@nexusmutual/workflows",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Reusable GitHub Actions workflows for NexusMutual repositories",
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}
