@@ -154,7 +154,8 @@ Each job runs against the [environment](https://docs.github.com/en/actions/how-t
 | --- | --- | --- |
 | `DEPLOYER_APP_ID` | `bump`, `check-tag-version-equality`, `check-version-bump`, `fast-forward`, `git-tag-github-release`, `open-pr`, `rebase`, `reset` | app id of the deployer GitHub App |
 | `DEPLOYER_APP_PK` | as above | private key for the same app |
-| `TOKEN`, `DOCKER_USERNAME`, `DOCKER_PASSWORD` | `build-image`, `tag-image` | GHCR authentication |
+| `TOKEN` | `build-image`, `tag-image` | checks out the calling repository |
+| `DOCKER_USERNAME`, `DOCKER_PASSWORD` | `build-image`, `tag-image` | GHCR authentication |
 
 `check-workflow-status.yml` and `determine-rc-version.yml` run without secrets.
 
