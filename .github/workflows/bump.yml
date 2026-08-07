@@ -24,6 +24,9 @@ on:
       bumped_version:
         description: "The version after bumping"
         value: ${{ jobs.bump.outputs.bumped_version }}
+      commit_sha:
+        description: "The commit this job pushed, for downstream jobs to build and tag"
+        value: ${{ jobs.bump.outputs.commit_sha }}
 
 jobs:
   bump:
@@ -31,6 +34,7 @@ jobs:
     environment: ${{ inputs.environment }}
     outputs:
       bumped_version: ${{ steps.get-version.outputs.bumped_version }}
+      commit_sha: ${{ steps.commit.outputs.commit_sha }}
     steps:
       - name: Create deployooor app token
         uses: actions/create-github-app-token@v1
@@ -93,8 +97,11 @@ jobs:
         run: echo "bumped_version=$(jq -r .version package.json)" >> $GITHUB_OUTPUT
 
       - name: Commit and push
+        id: commit
         env:
           LOCKFILE: ${{ steps.pm.outputs.lockfile }}
+          VERSION: ${{ steps.get-version.outputs.bumped_version }}
+          REF: ${{ inputs.ref }}
         run: |
           git config --local user.email "deployooor@nexusmutual.io"
           git config --local user.name "Version bumpooor"
@@ -107,5 +114,9 @@ jobs:
           fi
 
           git add package.json "$LOCKFILE" $(git ls-files "**/package.json" "**/$LOCKFILE")
-          git commit -m "chore(release): v${{ steps.get-version.outputs.bumped_version }} [skip ci]"
-          git push origin ${{ inputs.ref }}
+          git commit -m "chore(release): v${VERSION} [skip ci]"
+          git push origin "$REF"
+
+          # Downstream jobs build and tag this exact commit, rather than whatever the
+          # branch tip holds by the time they start.
+          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"

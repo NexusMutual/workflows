@@ -8,13 +8,18 @@ on:
         required: true
       ref:
         type: string
-        required: true
+        default: ""
+        description: "Ref to read version and sha from. Set this or source-tag."
       image:
         type: string
         required: true
       target-tag:
         type: string
         required: true
+      source-tag:
+        type: string
+        default: ""
+        description: "Tag to promote, e.g. needs.build-image.outputs.image-tag. Defaults to <version>-<sha> read from ref."
     secrets:
       TOKEN:
         required: true
@@ -28,17 +33,31 @@ jobs:
     runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
     steps:
+      # Only a caller relying on ref needs the checkout, to read version and sha from it.
       - uses: actions/checkout@v4
+        if: inputs.source-tag == ''
         with:
           token: ${{ secrets.TOKEN }}
           ref: ${{ inputs.ref }}
 
       - name: Get version and revision
         id: vars
+        env:
+          SOURCE_TAG: ${{ inputs.source-tag }}
+          REF: ${{ inputs.ref }}
         run: |
-          VERSION=$(jq -r .version package.json)
-          SHA_SHORT=$(git rev-parse --short HEAD)
-          echo "SOURCE_TAG=${VERSION}-${SHA_SHORT}" >> $GITHUB_OUTPUT
+          # Reading version and sha from ref resolves against the branch tip, which moves.
+          # Callers that already know the tag they pushed pass it in instead.
+          if [ -z "$SOURCE_TAG" ]; then
+            if [ -z "$REF" ]; then
+              echo "::error::Set either ref or source-tag"
+              exit 1
+            fi
+            VERSION=$(jq -r .version package.json)
+            SHA_SHORT=$(git rev-parse --short HEAD)
+            SOURCE_TAG="${VERSION}-${SHA_SHORT}"
+          fi
+          echo "SOURCE_TAG=${SOURCE_TAG}" >> $GITHUB_OUTPUT
           echo 'IMAGE=${{ inputs.image }}' | tr '[:upper:]' '[:lower:]' >> $GITHUB_OUTPUT
 
       - name: Tag image

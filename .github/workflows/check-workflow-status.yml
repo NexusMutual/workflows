@@ -11,7 +11,11 @@ on:
       workflow-status:
         type: string
         required: true
-        description: "Status to check for (e.g., in_progress, queued, completed)"
+        description: "Status to check for (e.g., in_progress, queued, completed), or non-terminal for any run still going"
+      created-within-minutes:
+        type: number
+        default: 0
+        description: "Only consider runs started within this many minutes. 0 considers every run."
       fail-if-exists:
         type: boolean
         default: true
@@ -30,22 +34,85 @@ jobs:
     steps:
       - name: Check workflow status
         uses: actions/github-script@v7
+        # Inputs reach the script through the environment, keeping them out of the source.
+        env:
+          WORKFLOW_NAME: ${{ inputs.workflow-name }}
+          WORKFLOW_STATUS: ${{ inputs.workflow-status }}
+          CREATED_WITHIN_MINUTES: ${{ inputs.created-within-minutes }}
+          FAIL_IF_EXISTS: ${{ inputs.fail-if-exists }}
+          ERROR_MESSAGE: ${{ inputs.error-message }}
         with:
           github-token: ${{ inputs.token || github.token }}
           script: |
-            const workflows = await github.rest.actions.listWorkflowRunsForRepo({
+            const workflowName = process.env.WORKFLOW_NAME;
+            const status = process.env.WORKFLOW_STATUS;
+            const windowMinutes = Number(process.env.CREATED_WITHIN_MINUTES) || 0;
+            const failIfExists = process.env.FAIL_IF_EXISTS === 'true';
+
+            // A run blocked by a concurrency group reports queued or pending depending on
+            // how it was triggered, so non-terminal asks for each of these in turn.
+            const NON_TERMINAL = ['queued', 'in_progress', 'waiting', 'pending', 'requested'];
+
+            // The API returns an empty list for a status it fails to recognise, which would
+            // pass this guard silently. Accept only the values it documents.
+            const ALLOWED = NON_TERMINAL.concat([
+              'completed',
+              'action_required',
+              'cancelled',
+              'failure',
+              'neutral',
+              'skipped',
+              'stale',
+              'success',
+              'timed_out',
+            ]);
+
+            if (status !== 'non-terminal' && !ALLOWED.includes(status)) {
+              core.setFailed(`Unknown workflow-status "${status}". Use non-terminal, or one of: ${ALLOWED.join(', ')}`);
+              return;
+            }
+
+            const params = {
               owner: context.repo.owner,
               repo: context.repo.repo,
-              workflow_id: '${{ inputs.workflow-name }}',
-              status: '${{ inputs.workflow-status }}',
-            });
+              workflow_id: workflowName,
+              per_page: 100,
+            };
 
-            if (workflows.data.total_count > 0) {
-              if (${{ inputs.fail-if-exists }}) {
-                core.setFailed(`${{ inputs.workflow-name }}: ${{ inputs.error-message }}`);
-              } else {
-                console.log(`Found ${{ inputs.workflow-status }} workflows for ${{ inputs.workflow-name }}. Continuing as configured.`);
+            if (windowMinutes > 0) {
+              params.created = `>=${new Date(Date.now() - windowMinutes * 60 * 1000).toISOString()}`;
+            }
+
+            // listWorkflowRuns scopes to workflow_id. The repo-level endpoint drops it and
+            // returns runs for every workflow, dependabot included.
+            // total_count covers every page, so the tally stays exact.
+            let total = 0;
+            const found = [];
+
+            for (const runStatus of status === 'non-terminal' ? NON_TERMINAL : [status]) {
+              let data;
+              try {
+                ({ data } = await github.rest.actions.listWorkflowRuns({ ...params, status: runStatus }));
+              } catch (error) {
+                if (error.status === 404) {
+                  core.setFailed(`Workflow ${workflowName} not found in ${context.repo.owner}/${context.repo.repo}`);
+                  return;
+                }
+                throw error;
               }
+              total += data.total_count;
+              found.push(...data.workflow_runs.map(run => `${run.name} ${run.status} (${run.html_url})`));
+            }
+
+            if (total === 0) {
+              console.log(`No ${status} runs found for ${workflowName}. Proceeding.`);
+              return;
+            }
+
+            const detail = found.join('\n');
+
+            if (failIfExists) {
+              core.setFailed(`${workflowName}: ${process.env.ERROR_MESSAGE}\n${detail}`);
             } else {
-              console.log(`No ${{ inputs.workflow-status }} workflows found for ${{ inputs.workflow-name }}. Proceeding.`);
+              console.log(`Found ${total} ${status} run(s) for ${workflowName}. Continuing as configured.\n${detail}`);
             }
