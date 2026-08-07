@@ -37,9 +37,8 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
           ref: ${{ inputs.ref }}
-          # Need git tags to determine version comparison, and the history to reach them:
-          # git describe walks back from HEAD, so a shallow clone finds nothing.
-          fetch-tags: true
+          # git describe walks back from HEAD to find a tag, so it needs the history.
+          # Depth 0 brings the tags along with it.
           fetch-depth: 0
 
       - name: Get package.json version

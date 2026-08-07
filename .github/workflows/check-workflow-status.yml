@@ -50,17 +50,27 @@ jobs:
             const failIfExists = process.env.FAIL_IF_EXISTS === 'true';
 
             // A run blocked by a concurrency group reports queued or pending depending on
-            // how it was triggered, so match everything that has yet to finish instead.
-            const TERMINAL = [
+            // how it was triggered, so non-terminal asks for each of these in turn.
+            const NON_TERMINAL = ['queued', 'in_progress', 'waiting', 'pending', 'requested'];
+
+            // The API returns an empty list for a status it fails to recognise, which would
+            // pass this guard silently. Accept only the values it documents.
+            const ALLOWED = NON_TERMINAL.concat([
               'completed',
-              'success',
-              'failure',
+              'action_required',
               'cancelled',
-              'timed_out',
-              'skipped',
+              'failure',
               'neutral',
+              'skipped',
               'stale',
-            ];
+              'success',
+              'timed_out',
+            ]);
+
+            if (status !== 'non-terminal' && !ALLOWED.includes(status)) {
+              core.setFailed(`Unknown workflow-status "${status}". Use non-terminal, or one of: ${ALLOWED.join(', ')}`);
+              return;
+            }
 
             const params = {
               owner: context.repo.owner,
@@ -69,40 +79,40 @@ jobs:
               per_page: 100,
             };
 
-            if (status !== 'non-terminal') {
-              params.status = status;
-            }
-
             if (windowMinutes > 0) {
               params.created = `>=${new Date(Date.now() - windowMinutes * 60 * 1000).toISOString()}`;
             }
 
             // listWorkflowRuns scopes to workflow_id. The repo-level endpoint drops it and
             // returns runs for every workflow, dependabot included.
-            let data;
-            try {
-              ({ data } = await github.rest.actions.listWorkflowRuns(params));
-            } catch (error) {
-              if (error.status === 404) {
-                core.setFailed(`Workflow ${workflowName} not found in ${context.repo.owner}/${context.repo.repo}`);
-                return;
+            // total_count covers every page, so the tally stays exact.
+            let total = 0;
+            const found = [];
+
+            for (const runStatus of status === 'non-terminal' ? NON_TERMINAL : [status]) {
+              let data;
+              try {
+                ({ data } = await github.rest.actions.listWorkflowRuns({ ...params, status: runStatus }));
+              } catch (error) {
+                if (error.status === 404) {
+                  core.setFailed(`Workflow ${workflowName} not found in ${context.repo.owner}/${context.repo.repo}`);
+                  return;
+                }
+                throw error;
               }
-              throw error;
+              total += data.total_count;
+              found.push(...data.workflow_runs.map(run => `${run.name} ${run.status} (${run.html_url})`));
             }
 
-            const runs = status === 'non-terminal'
-              ? data.workflow_runs.filter(run => !TERMINAL.includes(run.status))
-              : data.workflow_runs;
-
-            if (runs.length === 0) {
+            if (total === 0) {
               console.log(`No ${status} runs found for ${workflowName}. Proceeding.`);
               return;
             }
 
-            const found = runs.map(run => `${run.name} ${run.status} (${run.html_url})`).join('\n');
+            const detail = found.join('\n');
 
             if (failIfExists) {
-              core.setFailed(`${workflowName}: ${process.env.ERROR_MESSAGE}\n${found}`);
+              core.setFailed(`${workflowName}: ${process.env.ERROR_MESSAGE}\n${detail}`);
             } else {
-              console.log(`Found ${status} runs for ${workflowName}. Continuing as configured.\n${found}`);
+              console.log(`Found ${total} ${status} run(s) for ${workflowName}. Continuing as configured.\n${detail}`);
             }
