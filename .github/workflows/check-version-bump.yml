@@ -99,7 +99,7 @@ jobs:
           echo "Running bump command to check for version changes..."
           BUMP=$(${{ inputs.bump-command }}) || true
           
-          if [ -n "$BUMP" ] && [[ "$BUMP" != *"No version bump needed"* ]]; then
+          if [[ "$BUMP" =~ ^(major|minor|patch)$ ]]; then
             echo "A version bump is needed: '$BUMP'"
             echo "triggers_bump=true" >> $GITHUB_OUTPUT
             echo "bump_type=${BUMP}" >> $GITHUB_OUTPUT

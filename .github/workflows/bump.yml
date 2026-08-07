@@ -100,7 +100,8 @@ jobs:
           git config --local user.name "Version bumpooor"
 
           # check if there are changes to commit
-          if [[ -z "$(git status --porcelain package.json "$LOCKFILE" **/package.json **/"$LOCKFILE")" ]]; then
+          # Globs stay quoted so git matches them recursively, as git ls-files does below.
+          if [[ -z "$(git status --porcelain package.json "$LOCKFILE" "**/package.json" "**/$LOCKFILE")" ]]; then
             echo "No changes to commit. Failing bump job."
             exit 1
           fi
