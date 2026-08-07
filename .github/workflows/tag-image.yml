@@ -15,6 +15,10 @@ on:
       target-tag:
         type: string
         required: true
+      source-tag:
+        type: string
+        default: ""
+        description: "Tag to promote, e.g. needs.build-image.outputs.image-tag. Defaults to <version>-<sha> read from ref."
     secrets:
       TOKEN:
         required: true
@@ -35,10 +39,17 @@ jobs:
 
       - name: Get version and revision
         id: vars
+        env:
+          SOURCE_TAG: ${{ inputs.source-tag }}
         run: |
-          VERSION=$(jq -r .version package.json)
-          SHA_SHORT=$(git rev-parse --short HEAD)
-          echo "SOURCE_TAG=${VERSION}-${SHA_SHORT}" >> $GITHUB_OUTPUT
+          # Reading version and sha from ref resolves against the branch tip, which moves.
+          # Callers that already know the tag they pushed pass it in instead.
+          if [ -z "$SOURCE_TAG" ]; then
+            VERSION=$(jq -r .version package.json)
+            SHA_SHORT=$(git rev-parse --short HEAD)
+            SOURCE_TAG="${VERSION}-${SHA_SHORT}"
+          fi
+          echo "SOURCE_TAG=${SOURCE_TAG}" >> $GITHUB_OUTPUT
           echo 'IMAGE=${{ inputs.image }}' | tr '[:upper:]' '[:lower:]' >> $GITHUB_OUTPUT
 
       - name: Tag image
