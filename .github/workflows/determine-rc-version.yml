@@ -31,19 +31,44 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      # Each repository records its package manager in its lockfile. pnpm needs
+      # --no-git-checks to version a tree with local changes; this bump stays
+      # local.
+      - name: Detect package manager
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ] && [ -f package-lock.json ]; then
+            echo "::error::Both pnpm-lock.yaml and package-lock.json are present, cannot tell which package manager to use"
+            exit 1
+          elif [ -f pnpm-lock.yaml ]; then
+            name=pnpm
+            version="pnpm version --no-git-tag-version --no-git-checks"
+          elif [ -f package-lock.json ]; then
+            name=npm
+            version="npm version --no-git-tag-version"
+          else
+            echo "::error::Neither pnpm-lock.yaml nor package-lock.json found"
+            exit 1
+          fi
+
+          echo "Detected $name"
+          {
+            echo "name=$name"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: pnpm/action-setup@v4
+        if: steps.pm.outputs.name == 'pnpm'
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
-
-      # Only install minimal dependencies needed for npm version commands
-      - name: Setup npm
-        run: npm install -g npm@latest
 
       # Update package.json version locally (not committed)
       # This is needed to determine the base version for the RC
       - name: Ephemeral version bump
         run: |
-          npm version "${{ inputs.bump-type }}" --no-git-tag-version
+          ${{ steps.pm.outputs.version }} "${{ inputs.bump-type }}"
 
       # Determine RC version using npm's built-in prerelease functionality
       - name: Determine RC version
@@ -60,11 +85,11 @@ jobs:
           
           if [ -z "$latest_rc" ]; then
             # No existing RC for this base version - create the first one
-            npm version "$base_version-rc.0" --no-git-tag-version
+            ${{ steps.pm.outputs.version }} "$base_version-rc.0"
           else
             # Existing RC found - set the version to match it then increment
-            npm version "$latest_rc" --no-git-tag-version
-            npm version prerelease --preid=rc --no-git-tag-version
+            ${{ steps.pm.outputs.version }} "$latest_rc"
+            ${{ steps.pm.outputs.version }} prerelease --preid=rc
           fi
           
           rc_version="$(jq -r .version package.json)"

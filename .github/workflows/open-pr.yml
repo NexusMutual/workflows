@@ -61,11 +61,39 @@ jobs:
         run: |
           git checkout -b ${{ inputs.branch-name }}
 
+      # Detected from the checked-out target repository, which may use a
+      # different package manager than the caller.
+      - name: Detect package manager
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ] && [ -f package-lock.json ]; then
+            echo "::error::Both pnpm-lock.yaml and package-lock.json are present, cannot tell which package manager to use"
+            exit 1
+          elif [ -f pnpm-lock.yaml ]; then
+            name=pnpm
+            lockfile=pnpm-lock.yaml
+          elif [ -f package-lock.json ]; then
+            name=npm
+            lockfile=package-lock.json
+          else
+            echo "::error::Neither pnpm-lock.yaml nor package-lock.json found"
+            exit 1
+          fi
+
+          echo "Detected $name"
+          {
+            echo "name=$name"
+            echo "lockfile=$lockfile"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: pnpm/action-setup@v4
+        if: steps.pm.outputs.name == 'pnpm'
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
-          cache: "npm"
-          cache-dependency-path: package-lock.json
+          cache: ${{ steps.pm.outputs.name }}
+          cache-dependency-path: ${{ steps.pm.outputs.lockfile }}
 
       - name: Make changes
         run: ${{ inputs.change-command }}
