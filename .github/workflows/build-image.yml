@@ -42,15 +42,24 @@ jobs:
         id: vars
         run: |
           VERSION=$(jq -r .version package.json)
+          SHA=$(git rev-parse HEAD)
           SHA_SHORT=$(git rev-parse --short HEAD)
           echo "TAG=${VERSION}-${SHA_SHORT}" >> $GITHUB_OUTPUT
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "SHA=${SHA}" >> $GITHUB_OUTPUT
           echo 'IMAGE=${{ inputs.image }}' | tr '[:upper:]' '[:lower:]' >> $GITHUB_OUTPUT
 
       - name: Build image
         env:
           IMAGE: ${{ steps.vars.outputs.IMAGE }}
           TAG: ${{ steps.vars.outputs.TAG }}
-        run: docker build -t "ghcr.io/${IMAGE}:${TAG}" -f ${{ inputs.dockerfile }} .
+          VERSION: ${{ steps.vars.outputs.VERSION }}
+          SHA: ${{ steps.vars.outputs.SHA }}
+        run: |
+          docker build -t "ghcr.io/${IMAGE}:${TAG}" \
+            --label "org.opencontainers.image.version=${VERSION}" \
+            --label "org.opencontainers.image.revision=${SHA}" \
+            -f ${{ inputs.dockerfile }} .
 
       - name: Push image
         env:
